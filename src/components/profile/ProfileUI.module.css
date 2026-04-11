@@ -210,32 +210,6 @@
   to { transform: translateY(0); }
 }
 
-.inputGroup {
-  margin-bottom: var(--spacing-md);
-}
-
-.label {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  margin-bottom: var(--spacing-xs);
-  color: var(--text-secondary);
-}
-
-.input {
-  width: 100%;
-  padding: var(--spacing-md);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: 1rem;
-}
-
-.input:focus {
-  outline: none;
-  border-color: var(--brand-accent);
-}
 
 /* Bottom Navigation */
 .bottomNav {
@@ -340,32 +314,6 @@
   line-height: 1.5;
 }
 
-.otpGrid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: var(--spacing-sm);
-  margin: var(--spacing-xl) 0;
-}
-
-.otpField {
-  width: 100%;
-  aspect-ratio: 1;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: 1.5rem;
-  font-weight: 700;
-  text-align: center;
-  transition: all var(--transition-fast);
-}
-
-.otpField:focus {
-  outline: none;
-  border-color: var(--brand-accent);
-  box-shadow: 0 0 0 2px rgba(181, 153, 82, 0.2);
-}
-
 .authFooter {
   margin-top: auto;
   text-align: center;
@@ -375,14 +323,4 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-}
-
-.progressLabel {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--brand-accent);
-  margin-bottom: var(--spacing-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }

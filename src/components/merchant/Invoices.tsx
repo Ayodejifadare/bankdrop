@@ -3,6 +3,7 @@ import { useMerchant } from '../../context/MerchantContext';
 import type { Invoice } from '../../context/MerchantContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
+import { StatusPill } from '../ui/StatusPill';
 import styles from './MerchantUI.module.css';
 import { 
   FileText, 
@@ -105,14 +106,12 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({ initialBuildin
                       </div>
                     </div>
                   </div>
-                  <div className={`
-                    ${styles.statusPill} 
-                    ${invoice.status === 'paid' ? styles.pillPaid : 
-                      invoice.status === 'partial' ? styles.pillPartial : 
-                      invoice.status === 'unpaid' ? styles.pillUnpaid : styles.pillDraft}
-                  `}>
-                    {invoice.status}
-                  </div>
+                  <StatusPill 
+                    status={invoice.status === 'partial' ? 'partial' : 
+                            invoice.status === 'paid' ? 'paid' : 
+                            invoice.status === 'unpaid' ? 'unpaid' : 'draft'}
+                    label={invoice.status}
+                  />
                 </div>
 
                 <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>

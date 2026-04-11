@@ -1,8 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMerchant } from '../../context/MerchantContext';
-import styles from './MerchantUI.module.css';
+import { Input } from '../ui/Input';
+import { OTPInput } from '../ui/OTPInput';
 import { Button } from '../ui/Button';
+import styles from './MerchantUI.module.css';
 import { ChevronRight, ShieldCheck, Mail, ArrowLeft, Loader2 } from 'lucide-react';
 
 type AuthStep = 'email' | 'signup_reveal' | 'otp';
@@ -16,8 +18,6 @@ export const MerchantAuth: React.FC = () => {
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isNewMerchant, setIsNewMerchant] = useState(false);
-  
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,23 +31,6 @@ export const MerchantAuth: React.FC = () => {
       }
     } else if (step === 'signup_reveal') {
       setStep('otp');
-    }
-  };
-
-  const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) value = value[0];
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-
-    // Auto-focus next
-    if (value && index < 5) {
-      otpRefs.current[index + 1]?.focus();
-    }
-
-    // Auto-submit if complete
-    if (newOtp.every(digit => digit !== '') && index === 5) {
-      handleVerify(newOtp.join(''));
     }
   };
 
@@ -84,22 +67,16 @@ export const MerchantAuth: React.FC = () => {
               </p>
 
               <form onSubmit={handleEmailSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-                <div className={styles.inputGroup}>
-                  <label className={styles.inputLabel}>Business Email</label>
-                  <div style={{ position: 'relative' }}>
-                    <Mail size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input 
-                      type="email" 
-                      className={styles.input} 
-                      placeholder="admin@business.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      style={{ paddingLeft: '40px', width: '100%' }}
-                      required
-                      disabled={step === 'signup_reveal' || isLoadingAuth}
-                    />
-                  </div>
-                </div>
+                <Input
+                  label="Business Email"
+                  type="email"
+                  placeholder="admin@business.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  icon={<Mail size={18} />}
+                  required
+                  disabled={step === 'signup_reveal' || isLoadingAuth}
+                />
 
                 <AnimatePresence>
                   {step === 'signup_reveal' && (
@@ -109,32 +86,24 @@ export const MerchantAuth: React.FC = () => {
                       transition={{ duration: 0.3 }}
                       style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}
                     >
-                      <div className={styles.inputGroup}>
-                        <label className={styles.inputLabel}>Full Name</label>
-                        <input 
-                          type="text" 
-                          className={styles.input} 
-                          placeholder="Your Name"
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          style={{ width: '100%' }}
-                          required
-                          disabled={isLoadingAuth}
-                        />
-                      </div>
-                      <div className={styles.inputGroup}>
-                        <label className={styles.inputLabel}>Mobile Number</label>
-                        <input 
-                          type="tel" 
-                          className={styles.input} 
-                          placeholder="+234 ..."
-                          value={mobile}
-                          onChange={(e) => setMobile(e.target.value)}
-                          style={{ width: '100%' }}
-                          required
-                          disabled={isLoadingAuth}
-                        />
-                      </div>
+                      <Input
+                        label="Full Name"
+                        type="text"
+                        placeholder="Your Name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                        disabled={isLoadingAuth}
+                      />
+                      <Input
+                        label="Mobile Number"
+                        type="tel"
+                        placeholder="+234 ..."
+                        value={mobile}
+                        onChange={(e) => setMobile(e.target.value)}
+                        required
+                        disabled={isLoadingAuth}
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -172,26 +141,12 @@ export const MerchantAuth: React.FC = () => {
                 Enter the 6-digit code sent to <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{email}</span>
               </p>
 
-              <div className={styles.otpGrid}>
-                {otp.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    ref={(el) => (otpRefs.current[idx] = el)}
-                    type="text"
-                    inputMode="numeric"
-                    className={styles.otpField}
-                    value={digit}
-                    onChange={(e) => handleOtpChange(idx, e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Backspace' && !digit && idx > 0) {
-                        otpRefs.current[idx - 1]?.focus();
-                      }
-                    }}
-                    disabled={isLoadingAuth}
-                    maxLength={1}
-                  />
-                ))}
-              </div>
+              <OTPInput
+                value={otp}
+                onChange={setOtp}
+                disabled={isLoadingAuth}
+                onComplete={handleVerify}
+              />
 
               {isLoadingAuth && (
                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--spacing-lg)' }}>

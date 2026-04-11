@@ -18,7 +18,7 @@ export const CustomerProfileApp: React.FC<Props> = ({ onExit }) => {
   const { user, isAuthenticated, logout } = useCustomerProfile();
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
     return <ProfileAuth onExit={onExit} />;
   }
 

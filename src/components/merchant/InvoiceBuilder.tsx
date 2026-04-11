@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
 import type { Invoice, InvoiceItem, PaymentPlan } from '../../context/MerchantContext';
 import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
 import styles from './MerchantUI.module.css';
 import { 
   X, 
@@ -164,19 +165,16 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
 
         {step === 'build' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div className={styles.inputGroup}>
-              <label className={styles.inputLabel}>Customer Name</label>
-              <input 
-                className={styles.input} 
-                placeholder="Enter client name" 
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-              />
-            </div>
+            <Input
+              label="Customer Name"
+              placeholder="Enter client name"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+            />
 
-            <div className={styles.inputGroup}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label className={styles.inputLabel}>Items & Services</label>
+                <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Items & Services</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <Button size="small" variant="secondary" onClick={() => setShowMenuPicker(true)}>
                     <Search size={14} style={{ marginRight: '4px' }} /> Menu
@@ -344,8 +342,8 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
                   animate={{ height: 'auto', opacity: 1 }}
                   style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}
                 >
-                  <div className={styles.inputGroup}>
-                    <label className={styles.inputLabel}>Deposit / Upfront Amount (%)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                    <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Deposit / Upfront Amount (%)</label>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       {[20, 50, 70].map(p => (
                         <Button 
@@ -361,16 +359,14 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
                     </div>
                   </div>
 
-                  <div className={styles.inputGroup} style={{ marginTop: '16px' }}>
-                    <label className={styles.inputLabel}>Balance Rule (e.g. Monthly, On Delivery)</label>
-                    <input 
-                      className={styles.input} 
-                      placeholder="e.g. 6 month installments" 
-                      value={remainingRule}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => setRemainingRule(e.target.value)}
-                    />
-                  </div>
+                  <Input
+                    label="Balance Rule (e.g. Monthly, On Delivery)"
+                    placeholder="e.g. 6 month installments"
+                    value={remainingRule}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setRemainingRule(e.target.value)}
+                    style={{ marginTop: '16px' }}
+                  />
 
                   <div style={{ 
                     marginTop: '16px', 
@@ -580,19 +576,15 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
               exit={{ y: '100%' }}
               onClick={e => e.stopPropagation()}
             >
-              <div className={styles.inputGroup} style={{ marginBottom: '16px' }}>
-                <label className={styles.inputLabel}>Select from Menu</label>
-                <div style={{ position: 'relative' }}>
-                  <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
-                  <input 
-                    className={styles.input} 
-                    style={{ paddingLeft: '40px', width: '100%' }}
-                    placeholder="Search menu items..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    autoFocus
-                  />
-                </div>
+              <div style={{ marginBottom: '16px' }}>
+                <Input
+                  label="Select from Menu"
+                  placeholder="Search menu items..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  icon={<Search size={18} />}
+                  autoFocus
+                />
               </div>
 
               <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>

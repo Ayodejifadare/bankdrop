@@ -6,6 +6,7 @@ import { Card } from '../ui/Card';
 import styles from './ProfileUI.module.css';
 import { Plus, Landmark, Smartphone, ChevronRight, X, ShieldCheck, Download } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { Input, Select } from '../ui/Input';
 
 const NIGERIAN_BANKS = [
   'Access Bank',
@@ -141,41 +142,31 @@ const LinkForm: React.FC<{ onComplete: (data: any) => void }> = ({ onComplete })
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className={styles.inputGroup}>
-        <label className={styles.label}>Select Bank</label>
-        <select 
-          className={styles.input}
-          value={formData.bankName}
-          onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-        >
-          {NIGERIAN_BANKS.map(bank => <option key={bank} value={bank}>{bank}</option>)}
-        </select>
-      </div>
+      <Select
+        label="Select Bank"
+        value={formData.bankName}
+        onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+        options={NIGERIAN_BANKS.map(bank => ({ value: bank, label: bank }))}
+      />
 
-      <div className={styles.inputGroup}>
-        <label className={styles.label}>Account Number</label>
-        <input 
-          type="text" 
-          className={styles.input} 
-          placeholder="10 digit account number"
-          maxLength={10}
-          value={formData.accountNumber}
-          onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-          required
-        />
-      </div>
+      <Input
+        label="Account Number"
+        type="text"
+        placeholder="10 digit account number"
+        maxLength={10}
+        value={formData.accountNumber}
+        onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+        required
+      />
 
-      <div className={styles.inputGroup}>
-        <label className={styles.label}>Account Name</label>
-        <input 
-          type="text" 
-          className={styles.input} 
-          placeholder="Verified full name"
-          value={formData.accountName}
-          onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
-          required
-        />
-      </div>
+      <Input
+        label="Account Name"
+        type="text"
+        placeholder="Verified full name"
+        value={formData.accountName}
+        onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
+        required
+      />
 
       <Button variant="accent" fullWidth size="large" type="submit" style={{ marginTop: 'var(--spacing-md)' }}>
         Verify & Link <ChevronRight size={18} style={{ marginLeft: '8px' }} />

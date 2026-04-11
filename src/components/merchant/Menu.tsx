@@ -3,6 +3,7 @@ import { useMerchant } from '../../context/MerchantContext';
 import type { MenuItem } from '../../context/MerchantContext';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { Input, Select } from '../ui/Input';
 import { Plus, Trash2, Edit3, BookOpen, Package, Zap, Repeat } from 'lucide-react';
 import styles from './MerchantUI.module.css';
 
@@ -76,66 +77,52 @@ export const MenuManager: React.FC = () => {
       {isAdding && (
         <Card title="New Menu Item">
           <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-            <div className={styles.inputGroup}>
-              <label className={styles.inputLabel}>Item Name</label>
-              <input 
-                type="text" 
-                className={styles.input} 
-                value={newItem.name}
-                onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                required 
-              />
-            </div>
+            <Input
+              label="Item Name"
+              type="text"
+              value={newItem.name}
+              onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+              required 
+            />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-md)' }}>
-              <div className={styles.inputGroup}>
-                <label className={styles.inputLabel}>Type</label>
-                <select 
-                  className={styles.input}
-                  value={newItem.type}
-                  onChange={(e) => setNewItem({ ...newItem, type: e.target.value as MenuItem['type'] })}
-                >
-                  <option value="item">Product / Item</option>
-                  <option value="service">Service</option>
-                  <option value="subscription">Subscription</option>
-                </select>
-              </div>
+              <Select
+                label="Type"
+                value={newItem.type}
+                onChange={(e) => setNewItem({ ...newItem, type: e.target.value as MenuItem['type'] })}
+                options={[
+                  { value: 'item', label: 'Product / Item' },
+                  { value: 'service', label: 'Service' },
+                  { value: 'subscription', label: 'Subscription' }
+                ]}
+              />
               {newItem.type === 'subscription' && (
-                <div className={styles.inputGroup}>
-                  <label className={styles.inputLabel}>Billing Cycle</label>
-                  <select 
-                    className={styles.input}
-                    value={newItem.billingCycle}
-                    onChange={(e) => setNewItem({ ...newItem, billingCycle: e.target.value as MenuItem['billingCycle'] })}
-                  >
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
-                </div>
+                <Select
+                  label="Billing Cycle"
+                  value={newItem.billingCycle}
+                  onChange={(e) => setNewItem({ ...newItem, billingCycle: e.target.value as MenuItem['billingCycle'] })}
+                  options={[
+                    { value: 'daily', label: 'Daily' },
+                    { value: 'weekly', label: 'Weekly' },
+                    { value: 'monthly', label: 'Monthly' },
+                    { value: 'yearly', label: 'Yearly' }
+                  ]}
+                />
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-md)' }}>
-              <div className={styles.inputGroup}>
-                <label className={styles.inputLabel}>Price (₦)</label>
-                <input 
-                  type="number" 
-                  className={styles.input} 
-                  value={newItem.price}
-                  onChange={(e) => setNewItem({ ...newItem, price: Number(e.target.value) })}
-                  required 
-                />
-              </div>
-              <div className={styles.inputGroup}>
-                <label className={styles.inputLabel}>Category</label>
-                <select 
-                  className={styles.input}
-                  value={newItem.category}
-                  onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
-                >
-                  {categories.slice(1).map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
-              </div>
+              <Input
+                label="Price (₦)"
+                type="number"
+                value={newItem.price}
+                onChange={(e) => setNewItem({ ...newItem, price: Number(e.target.value) })}
+                required 
+              />
+              <Select
+                label="Category"
+                value={newItem.category}
+                onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
+                options={categories.slice(1).map(cat => ({ value: cat, label: cat }))}
+              />
             </div>
             <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginTop: 'var(--spacing-sm)' }}>
               <Button type="submit" variant="primary" fullWidth>Save Item</Button>

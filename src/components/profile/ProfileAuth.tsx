@@ -1,8 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCustomerProfile } from '../../context/CustomerProfileContext';
-import styles from './ProfileUI.module.css';
+import { Input } from '../ui/Input';
+import { OTPInput } from '../ui/OTPInput';
 import { Button } from '../ui/Button';
+import styles from './ProfileUI.module.css';
 import { ChevronRight, ShieldCheck, Mail, ArrowLeft, Loader2 } from 'lucide-react';
 
 interface Props {
@@ -20,8 +22,6 @@ export const ProfileAuth: React.FC<Props> = ({ onExit }) => {
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isNewUser, setIsNewUser] = useState(false);
-  
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,23 +35,6 @@ export const ProfileAuth: React.FC<Props> = ({ onExit }) => {
       }
     } else if (step === 'signup_reveal') {
       setStep('otp');
-    }
-  };
-
-  const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) value = value[0];
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-
-    // Auto-focus next
-    if (value && index < 5) {
-      otpRefs.current[index + 1]?.focus();
-    }
-
-    // Auto-submit if complete
-    if (newOtp.every(digit => digit !== '') && index === 5) {
-      handleVerify(newOtp.join(''));
     }
   };
 
@@ -88,22 +71,16 @@ export const ProfileAuth: React.FC<Props> = ({ onExit }) => {
               </p>
 
               <form onSubmit={handleEmailSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-                <div className={styles.inputGroup}>
-                  <label className={styles.label}>Email</label>
-                  <div style={{ position: 'relative' }}>
-                    <Mail size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input 
-                      type="email" 
-                      className={styles.input} 
-                      placeholder="name@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      style={{ paddingLeft: '40px' }}
-                      required
-                      disabled={step === 'signup_reveal' || isLoadingAuth}
-                    />
-                  </div>
-                </div>
+                <Input
+                  label="Email"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  icon={<Mail size={18} />}
+                  required
+                  disabled={step === 'signup_reveal' || isLoadingAuth}
+                />
 
                 <AnimatePresence>
                   {step === 'signup_reveal' && (
@@ -113,30 +90,24 @@ export const ProfileAuth: React.FC<Props> = ({ onExit }) => {
                       transition={{ duration: 0.3 }}
                       style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}
                     >
-                      <div className={styles.inputGroup}>
-                        <label className={styles.label}>Full Name</label>
-                        <input 
-                          type="text" 
-                          className={styles.input} 
-                          placeholder="Jane Doe"
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          required
-                          disabled={isLoadingAuth}
-                        />
-                      </div>
-                      <div className={styles.inputGroup}>
-                        <label className={styles.label}>Mobile Number</label>
-                        <input 
-                          type="tel" 
-                          className={styles.input} 
-                          placeholder="+234 000 000 0000"
-                          value={mobile}
-                          onChange={(e) => setMobile(e.target.value)}
-                          required
-                          disabled={isLoadingAuth}
-                        />
-                      </div>
+                      <Input
+                        label="Full Name"
+                        type="text"
+                        placeholder="Jane Doe"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                        disabled={isLoadingAuth}
+                      />
+                      <Input
+                        label="Mobile Number"
+                        type="tel"
+                        placeholder="+234 000 000 0000"
+                        value={mobile}
+                        onChange={(e) => setMobile(e.target.value)}
+                        required
+                        disabled={isLoadingAuth}
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -162,7 +133,10 @@ export const ProfileAuth: React.FC<Props> = ({ onExit }) => {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
             >
-              <button onClick={() => setStep(isNewUser ? 'signup_reveal' : 'email')} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)', marginBottom: 'var(--spacing-xl)' }}>
+              <button 
+                onClick={() => setStep(isNewUser ? 'signup_reveal' : 'email')} 
+                style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)', marginBottom: 'var(--spacing-xl)', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
+              >
                 <ArrowLeft size={16} /> Back
               </button>
 
@@ -171,25 +145,12 @@ export const ProfileAuth: React.FC<Props> = ({ onExit }) => {
                 Enter the 6-digit code sent to <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{email}</span>
               </p>
 
-              <div className={styles.otpGrid}>
-                {otp.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    ref={(el) => (otpRefs.current[idx] = el)}
-                    type="text"
-                    inputMode="numeric"
-                    className={styles.otpField}
-                    value={digit}
-                    onChange={(e) => handleOtpChange(idx, e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Backspace' && !digit && idx > 0) {
-                        otpRefs.current[idx - 1]?.focus();
-                      }
-                    }}
-                    disabled={isLoadingAuth}
-                  />
-                ))}
-              </div>
+              <OTPInput
+                value={otp}
+                onChange={setOtp}
+                disabled={isLoadingAuth}
+                onComplete={handleVerify}
+              />
 
               {isLoadingAuth && (
                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--spacing-lg)' }}>

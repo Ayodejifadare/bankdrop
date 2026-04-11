@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { Input, Select } from '../ui/Input';
 import { ShieldCheck, Landmark, ArrowRight, Wallet } from 'lucide-react';
 import styles from './MerchantUI.module.css';
 
@@ -75,41 +76,31 @@ export const MerchantOnboarding: React.FC = () => {
       </header>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
-        <div className={styles.inputGroup}>
-          <label className={styles.inputLabel}>Select Bank</label>
-          <select 
-            className={styles.input}
-            value={formData.bankName}
-            onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-          >
-            {NIGERIAN_BANKS.map(bank => <option key={bank} value={bank}>{bank}</option>)}
-          </select>
-        </div>
+        <Select
+          label="Select Bank"
+          value={formData.bankName}
+          onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+          options={NIGERIAN_BANKS.map(bank => ({ value: bank, label: bank }))}
+        />
 
-        <div className={styles.inputGroup}>
-          <label className={styles.inputLabel}>Account Number</label>
-          <input 
-            type="text" 
-            className={styles.input} 
-            placeholder="10 digit account number"
-            maxLength={10}
-            value={formData.accountNumber}
-            onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-            required
-          />
-        </div>
+        <Input
+          label="Account Number"
+          type="text"
+          placeholder="10 digit account number"
+          maxLength={10}
+          value={formData.accountNumber}
+          onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+          required
+        />
 
-        <div className={styles.inputGroup}>
-          <label className={styles.inputLabel}>Account Name</label>
-          <input 
-            type="text" 
-            className={styles.input} 
-            placeholder="Name as it appears on bank"
-            value={formData.accountName}
-            onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
-            required
-          />
-        </div>
+        <Input
+          label="Account Name"
+          type="text"
+          placeholder="Name as it appears on bank"
+          value={formData.accountName}
+          onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
+          required
+        />
 
         <Button variant="accent" fullWidth size="large" type="submit">
           Verify & Link Account <ArrowRight size={18} style={{ marginLeft: '8px' }} />
@@ -117,7 +108,7 @@ export const MerchantOnboarding: React.FC = () => {
       </form>
 
       <div style={{ marginTop: 'var(--spacing-xxl)' }}>
-        <h3 className={styles.inputLabel}>Why link an account?</h3>
+        <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Why link an account?</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)', marginTop: 'var(--spacing-md)' }}>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <Wallet size={20} color="var(--brand-accent)" />

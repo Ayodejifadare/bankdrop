@@ -3,6 +3,7 @@ import type { Reward } from '../../context/MerchantContext';
 import { useMerchant } from '../../context/MerchantContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
+import { Input, Select } from '../ui/Input';
 import styles from './MerchantUI.module.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -242,44 +243,30 @@ export const RewardsManager: React.FC = () => {
                 <button onClick={closeModal} style={{ color: 'var(--text-secondary)' }}><X size={24} /></button>
               </div>
 
-              <div className={styles.inputGroup}>
-                <label className={styles.inputLabel}>Offer Title</label>
-                <input 
-                  className={styles.input} 
-                  placeholder="e.g. Mega Spender Bonus" 
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              </div>
+              <Input
+                label="Offer Title"
+                placeholder="e.g. Mega Spender Bonus"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
 
               <div className={styles.responsiveGrid} style={{ marginTop: 'var(--spacing-md)' }}>
-                <div className={styles.inputGroup}>
-                  <label className={styles.inputLabel}>Min. Spend (₦)</label>
-                  <input 
-                    type="number"
-                    className={styles.input} 
-                    value={minSpend}
-                    onChange={(e) => setMinSpend(parseInt(e.target.value) || 0)}
-                  />
-                </div>
-                <div className={styles.inputGroup}>
-                  <label className={styles.inputLabel}>Reward Value</label>
-                  <div style={{ position: 'relative', width: '100%' }}>
-                    <input 
-                      type="number"
-                      className={styles.input} 
-                      style={{ width: '100%' }}
-                      value={rewardValue}
-                      onChange={(e) => setRewardValue(parseInt(e.target.value) || 0)}
-                    />
+                <Input
+                  label="Min. Spend (₦)"
+                  type="number"
+                  value={minSpend}
+                  onChange={(e) => setMinSpend(parseInt(e.target.value) || 0)}
+                />
+                <Input
+                  label="Reward Value"
+                  type="number"
+                  value={rewardValue}
+                  onChange={(e) => setRewardValue(parseInt(e.target.value) || 0)}
+                  rightAddon={
                     <select 
                       value={rewardUnit}
                       onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setRewardUnit(e.target.value as 'cash' | 'percentage')}
                       style={{ 
-                        position: 'absolute', 
-                        right: '8px', 
-                        top: '50%', 
-                        transform: 'translateY(-50%)',
                         backgroundColor: 'var(--bg-tertiary)',
                         border: 'none',
                         borderRadius: '4px',
@@ -291,32 +278,27 @@ export const RewardsManager: React.FC = () => {
                       <option value="percentage">%</option>
                       <option value="cash">₦</option>
                     </select>
-                  </div>
-                </div>
+                  }
+                />
               </div>
 
               <div className={styles.responsiveGrid} style={{ marginTop: 'var(--spacing-md)' }}>
-                <div className={styles.inputGroup}>
-                  <label className={styles.inputLabel}>Status</label>
-                  <select 
-                    className={styles.input} 
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as any)}
-                  >
-                    <option value="active">Active</option>
-                    <option value="paused">Paused</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </div>
-                <div className={styles.inputGroup}>
-                  <label className={styles.inputLabel}>Expiry Date</label>
-                  <input 
-                    type="date"
-                    className={styles.input} 
-                    value={expiryDate}
-                    onChange={(e) => setExpiryDate(e.target.value)}
-                  />
-                </div>
+                <Select
+                  label="Status"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as any)}
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'paused', label: 'Paused' },
+                    { value: 'archived', label: 'Archived' }
+                  ]}
+                />
+                <Input
+                  label="Expiry Date"
+                  type="date"
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(e.target.value)}
+                />
               </div>
 
               <div className={styles.modalFooter}>

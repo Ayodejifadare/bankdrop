@@ -1,0 +1,39 @@
+.otpGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--spacing-sm);
+  margin: var(--spacing-xl) 0;
+}
+
+.otpField {
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 52px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  transition: all var(--transition-fast);
+  caret-color: var(--brand-accent);
+}
+
+.otpField:focus {
+  outline: none;
+  border-color: var(--brand-accent);
+  box-shadow: 0 0 0 2px rgba(181, 153, 82, 0.2);
+}
+
+.otpField:disabled {
+  opacity: 0.5;
+}
+
+/* Prevent iOS zoom */
+@media (max-width: 480px) {
+  .otpField {
+    font-size: 16px !important;
+    max-width: none;
+  }
+}
