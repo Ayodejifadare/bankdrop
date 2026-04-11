@@ -28,3 +28,5 @@ export interface UserProfile {
   email: string;
   avatar?: string;
 }
+
+export type ProfileTab = 'profile' | 'wallet' | 'rewards' | 'activity';
