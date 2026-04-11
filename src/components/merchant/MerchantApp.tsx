@@ -19,6 +19,7 @@ import { QRManager } from './QRManager';
 import { RewardsManager } from './Rewards';
 import { ActionHub } from './ActionHub';
 import { ProfileView } from './Profile';
+import { ActivityLog } from './ActivityLog';
 import { PaymentAlert } from './PaymentAlert';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -26,7 +27,7 @@ import { motion } from 'framer-motion';
 import styles from './MerchantUI.module.css';
 
 // Dashboard Screen Component
-const Dashboard: React.FC<{ onTabChange: (tab: number) => void }> = ({ onTabChange }) => {
+const Dashboard: React.FC<{ onTabChange: (tab: number) => void; onViewAll: () => void }> = ({ onTabChange, onViewAll }) => {
   const { state } = useMerchant();
   const activeChecks = state.checks.filter(c => c.status === 'active').length;
   const totalToday = state.checks.reduce((acc, c) => acc + (c.status === 'paid' ? c.total : 0), 0);
@@ -79,17 +80,33 @@ const Dashboard: React.FC<{ onTabChange: (tab: number) => void }> = ({ onTabChan
       <div style={{ marginTop: 'var(--spacing-xxl)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--spacing-md)' }}>
           <h3>Recent Activity</h3>
-          <span style={{ color: 'var(--brand-accent)', fontSize: '0.875rem' }}>View All</span>
+          <button 
+            onClick={onViewAll}
+            style={{ color: 'var(--brand-accent)', fontSize: '0.875rem', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+          >
+            View All
+          </button>
         </div>
-        <Card>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontWeight: 600 }}>Guest #142</div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>New Order on Check 23</p>
-            </div>
-            <span style={{ fontWeight: 600 }}>₦12,500</span>
+        
+        {state.activities.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+            <p>No recent activity.</p>
           </div>
-        </Card>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {state.activities.slice(0, 5).map(activity => (
+              <Card key={activity.id}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{activity.title}</div>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{activity.subtitle}</p>
+                  </div>
+                  <span style={{ fontWeight: 700, color: '#4ade80' }}>+₦{activity.amount.toLocaleString()}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -101,6 +118,7 @@ export const MerchantApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [isActionHubOpen, setIsActionHubOpen] = useState(false);
   const [viewProfile, setViewProfile] = useState(false);
+  const [viewActivityLog, setViewActivityLog] = useState(false);
   const [segmentView, setSegmentView] = useState<'checks' | 'invoices'>('checks');
   const [isBuildingInvoice, setIsBuildingInvoice] = useState(false);
 
@@ -124,15 +142,16 @@ export const MerchantApp: React.FC = () => {
 
   const renderContent = () => {
     if (viewProfile) return <ProfileView onBack={() => setViewProfile(false)} />;
+    if (viewActivityLog) return <ActivityLog onBack={() => setViewActivityLog(false)} />;
     
     switch (activeTab) {
-      case 0: return <Dashboard onTabChange={(tab) => setActiveTab(tab)} />;
+      case 0: return <Dashboard onTabChange={(tab) => setActiveTab(tab)} onViewAll={() => setViewActivityLog(true)} />;
       case 1: return <MenuManager />;
       case 2: 
         return segmentView === 'checks' ? <CheckManager /> : <InvoicesManager initialBuilding={isBuildingInvoice} onBuildingComplete={() => setIsBuildingInvoice(false)} />;
       case 3: return <QRManager />;
       case 4: return <RewardsManager />;
-      default: return <Dashboard onTabChange={(tab) => setActiveTab(tab)} />;
+      default: return <Dashboard onTabChange={(tab) => setActiveTab(tab)} onViewAll={() => setViewActivityLog(true)} />;
     }
   };
 

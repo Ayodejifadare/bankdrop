@@ -71,6 +71,16 @@ export interface PendingVerification {
   status: 'pending' | 'confirmed' | 'declined';
 }
 
+export interface MerchantActivity {
+  id: string;
+  type: 'check_payment' | 'invoice_payment';
+  amount: number;
+  referenceId: string;
+  title: string;
+  subtitle: string;
+  timestamp: string;
+}
+
 export interface MerchantState {
   name: string;
   bankAccount: BankAccount | null;
@@ -79,6 +89,7 @@ export interface MerchantState {
   rewards: Reward[];
   invoices: Invoice[];
   pendingVerifications: PendingVerification[];
+  activities: MerchantActivity[];
 }
 
 interface MerchantContextType {
@@ -137,12 +148,31 @@ const DEFAULT_STATE: MerchantState = {
   ],
   invoices: [],
   pendingVerifications: [],
+  activities: [
+    {
+      id: 'act_1',
+      type: 'check_payment',
+      amount: 4500,
+      referenceId: '12',
+      title: 'Guest #142',
+      subtitle: 'New Order on Check 12',
+      timestamp: new Date().toISOString()
+    }
+  ],
 };
 
 export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<MerchantState>(() => {
     const saved = localStorage.getItem('merchant_state');
-    return saved ? JSON.parse(saved) : DEFAULT_STATE;
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { 
+        ...DEFAULT_STATE, 
+        ...parsed, 
+        activities: parsed.activities || DEFAULT_STATE.activities 
+      };
+    }
+    return DEFAULT_STATE;
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -208,10 +238,28 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const updateCheckStatus = (id: string, status: 'open' | 'active' | 'paid') => {
-    setState(prev => ({
-      ...prev,
-      checks: prev.checks.map(c => c.id === id ? { ...c, status } : c)
-    }));
+    setState(prev => {
+      let newActivities = [...prev.activities];
+      if (status === 'paid') {
+        const check = prev.checks.find(c => c.id === id);
+        if (check && check.total > 0) {
+          newActivities.unshift({
+            id: `act_${Date.now()}`,
+            type: 'check_payment',
+            amount: check.total,
+            referenceId: id,
+            title: `Check #${id}`,
+            subtitle: 'Paid at counter',
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+      return {
+        ...prev,
+        checks: prev.checks.map(c => c.id === id ? { ...c, status } : c),
+        activities: newActivities
+      };
+    });
   };
 
   const addOrderToCheck = (checkId: string, item: OrderItem) => {
@@ -332,10 +380,28 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const updateInvoiceStatus = (id: string, status: Invoice['status']) => {
-    setState(prev => ({
-      ...prev,
-      invoices: prev.invoices.map(inv => inv.id === id ? { ...inv, status } : inv)
-    }));
+    setState(prev => {
+      let newActivities = [...prev.activities];
+      if (status === 'paid') {
+        const invoice = prev.invoices.find(c => c.id === id);
+        if (invoice && invoice.total > 0) {
+          newActivities.unshift({
+            id: `act_${Date.now()}`,
+            type: 'invoice_payment',
+            amount: invoice.total,
+            referenceId: id,
+            title: `Invoice ${id}`,
+            subtitle: `Paid by ${invoice.customerName}`,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+      return {
+        ...prev,
+        invoices: prev.invoices.map(inv => inv.id === id ? { ...inv, status } : inv),
+        activities: newActivities
+      };
+    });
   };
 
   const requestVerification = (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => {
@@ -362,6 +428,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       newVerifications[index] = { ...verification, status: confirmed ? 'confirmed' : 'declined' };
 
       const newState = { ...prev, pendingVerifications: newVerifications };
+      let newActivities = [...prev.activities];
 
       // Update actual status if confirmed
       if (confirmed) {
@@ -369,12 +436,32 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           newState.checks = newState.checks.map(c => 
             c.id === verification.targetId ? { ...c, status: 'paid' } : c
           );
+          newActivities.unshift({
+            id: `act_${Date.now()}`,
+            type: 'check_payment',
+            amount: verification.amount,
+            referenceId: verification.targetId,
+            title: `Check #${verification.targetId}`,
+            subtitle: 'Verified remote payment',
+            timestamp: new Date().toISOString()
+          });
         } else if (verification.type === 'invoice') {
           newState.invoices = newState.invoices.map(inv => 
             inv.id === verification.targetId ? { ...inv, status: 'paid' } : inv
           );
+          const inv = prev.invoices.find(i => i.id === verification.targetId);
+          newActivities.unshift({
+            id: `act_${Date.now()}`,
+            type: 'invoice_payment',
+            amount: verification.amount,
+            referenceId: verification.targetId,
+            title: `Invoice ${verification.targetId}`,
+            subtitle: inv ? `Paid by ${inv.customerName}` : 'Verified remote payment',
+            timestamp: new Date().toISOString()
+          });
         }
       }
+      newState.activities = newActivities;
       return newState;
     });
   };
