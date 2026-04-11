@@ -1,0 +1,355 @@
+import React, { useState } from 'react';
+import { useMerchant } from '../../context/MerchantContext';
+import type { Check } from '../../context/MerchantContext';
+import { Button } from '../ui/Button';
+import { 
+  Users, 
+  Plus, 
+  Minus,
+  X, 
+  Clock,
+  ArrowLeft,
+  Check as CheckIcon,
+  Zap,
+  Repeat,
+  Package
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import styles from './MerchantUI.module.css';
+
+interface QuantityStepperProps {
+  value: number;
+  onIncrease: () => void;
+  onDecrease: () => void;
+  min?: number;
+}
+
+const QuantityStepper: React.FC<QuantityStepperProps> = ({ value, onIncrease, onDecrease, min = 0 }) => (
+  <div className={styles.stepper}>
+    <button 
+      className={styles.stepperBtn} 
+      onClick={(e) => { e.stopPropagation(); onDecrease(); }}
+      disabled={value <= min}
+    >
+      <Minus size={16} />
+    </button>
+    <div className={styles.stepperCount}>{value}</div>
+    <button 
+      className={styles.stepperBtn} 
+      onClick={(e) => { e.stopPropagation(); onIncrease(); }}
+    >
+      <Plus size={16} />
+    </button>
+  </div>
+);
+
+export const CheckManager: React.FC = () => {
+  const { state, addOrderToCheck, addOrdersToCheck, updateOrderQuantity, updateCheckStatus, clearCheck } = useMerchant();
+  const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
+  const [isAddingItem, setIsAddingItem] = useState(false);
+  const [pendingOrders, setPendingOrders] = useState<Record<string, number>>({});
+
+  const selectedCheck = state.checks.find(c => c.id === selectedCheckId);
+
+  const handleUpdatePendingQuantity = (menuItemId: string, delta: number) => {
+    setPendingOrders(prev => {
+      const current = prev[menuItemId] || 0;
+      const next = Math.max(0, current + delta);
+      if (next === 0) {
+        const { [menuItemId]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [menuItemId]: next };
+    });
+  };
+
+  const handleConfirmAddItems = () => {
+    if (selectedCheckId) {
+      const itemsToAdd = Object.entries(pendingOrders).map(([menuItemId, quantity]) => ({
+        menuItemId,
+        quantity
+      }));
+      if (itemsToAdd.length > 0) {
+        addOrdersToCheck(selectedCheckId, itemsToAdd);
+      }
+      setPendingOrders({});
+      setIsAddingItem(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsAddingItem(false);
+    setPendingOrders({});
+  };
+
+  const getStatusColor = (status: Check['status']) => {
+    switch (status) {
+      case 'active': return 'var(--brand-accent)';
+      case 'paid': return '#4ade80';
+      default: return 'var(--border-primary)';
+    }
+  };
+
+  return (
+    <div className={styles.checkManager}>
+      <header style={{ marginBottom: 'var(--spacing-lg)' }}>
+        <h2 className={styles.title}>Checks & Tables</h2>
+        <p style={{ color: 'var(--text-secondary)' }}>Tap a check to manage orders</p>
+      </header>
+
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(3, 1fr)', 
+        gap: 'var(--spacing-md)' 
+      }}>
+        {state.checks.map(check => (
+          <motion.div
+            key={check.id}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setSelectedCheckId(check.id)}
+            style={{
+              aspectRatio: '1/1',
+              backgroundColor: 'var(--bg-secondary)',
+              borderRadius: 'var(--radius-md)',
+              border: `2px solid ${getStatusColor(check.status)}`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+          >
+            <span style={{ fontSize: '1.25rem', fontWeight: 700 }}>{check.id}</span>
+            <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+              {check.status === 'open' ? 'Free' : check.status}
+            </span>
+            {check.status === 'active' && (
+              <div style={{ 
+                position: 'absolute', 
+                top: 0, 
+                right: 0, 
+                padding: '4px',
+                backgroundColor: 'var(--brand-accent)',
+                color: '#000',
+                borderBottomLeftRadius: 'var(--radius-sm)'
+              }}>
+                <Clock size={10} />
+              </div>
+            )}
+          </motion.div>
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {selectedCheckId && (
+          <motion.div
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              backgroundColor: 'var(--bg-primary)',
+              zIndex: 1000,
+              padding: 'var(--spacing-lg)',
+              overflowY: 'auto'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--spacing-xl)' }}>
+              <button onClick={() => setSelectedCheckId(null)} style={{ border: 'none', background: 'none', color: 'var(--text-primary)' }}>
+                <ArrowLeft size={24} />
+              </button>
+              <h2 className={styles.title}>Check #{selectedCheckId}</h2>
+              <div style={{ width: 24 }} />
+            </div>
+
+            {selectedCheck?.status === 'open' ? (
+              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <Users size={64} style={{ opacity: 0.1, marginBottom: '24px' }} />
+                <h3>Check is empty</h3>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-xl)' }}>
+                  Start a new order for this table
+                </p>
+                <Button variant="accent" fullWidth onClick={() => setIsAddingItem(true)}>
+                  <Plus size={18} /> New Order
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
+                  <span className={styles.badge} style={{ backgroundColor: getStatusColor(selectedCheck?.status || 'open'), color: '#000', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>
+                    {selectedCheck?.status}
+                  </span>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>₦{selectedCheck?.total.toLocaleString()}</div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-xl)' }}>
+                  {selectedCheck?.orders.map((order, idx) => {
+                    const item = state.menu.find(m => m.id === order.menuItemId);
+                    return (
+                      <div key={idx} className={styles.orderRow}>
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                          <div style={{ 
+                            width: '32px', 
+                            height: '32px', 
+                            borderRadius: '6px', 
+                            backgroundColor: 'var(--bg-tertiary)', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            opacity: 0.6
+                          }}>
+                            {item?.type === 'subscription' ? <Repeat size={14} /> : item?.type === 'service' ? <Zap size={14} /> : <Package size={14} />}
+                          </div>
+                          <div className={styles.orderInfo}>
+                            <span className={styles.orderTitle}>{item?.name}</span>
+                            <span className={styles.orderSubtitle}>
+                              ₦{item?.price.toLocaleString()}
+                              {item?.type === 'subscription' && ` / ${item.billingCycle}`}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <span style={{ fontWeight: 600 }}>₦{((item?.price || 0) * order.quantity).toLocaleString()}</span>
+                          {selectedCheck.status === 'active' && (
+                            <QuantityStepper 
+                              value={order.quantity} 
+                              onIncrease={() => updateOrderQuantity(selectedCheckId!, order.menuItemId, 1)}
+                              onDecrease={() => updateOrderQuantity(selectedCheckId!, order.menuItemId, -1)}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                  {selectedCheck?.status === 'active' && (
+                    <>
+                      <Button variant="accent" fullWidth onClick={() => setIsAddingItem(true)}>
+                        <Plus size={18} /> Add Items
+                      </Button>
+                      <Button variant="primary" fullWidth onClick={() => updateCheckStatus(selectedCheckId, 'paid')}>
+                        Settled / Paid
+                      </Button>
+                    </>
+                  )}
+                  {selectedCheck?.status === 'paid' && (
+                    <Button variant="outline" fullWidth onClick={() => clearCheck(selectedCheckId)}>
+                      Clear & Close Check
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* In-check Menu Selection Modal */}
+            <AnimatePresence>
+              {isAddingItem && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'var(--bg-primary)',
+                    zIndex: 1100,
+                    padding: 'var(--spacing-lg)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <h3 style={{ margin: 0 }}>Add Items</h3>
+                      {Object.keys(pendingOrders).length > 0 && (
+                        <span className={styles.pendingBadge}>
+                          {Object.values(pendingOrders).reduce((a, b) => a + b, 0)} selected
+                        </span>
+                      )}
+                    </div>
+                    <button onClick={handleCloseModal} style={{ border: 'none', background: 'none', color: 'var(--text-primary)' }}><X size={24} /></button>
+                  </div>
+
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: 'var(--spacing-sm)',
+                    paddingBottom: '100px',
+                    overflowY: 'auto',
+                    flex: 1
+                  }}>
+                    {state.menu.map(item => (
+                      <div 
+                        key={item.id} 
+                        className={styles.orderRow}
+                        style={{ padding: '12px 0' }}
+                      >
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                          <div style={{ 
+                            width: '36px', 
+                            height: '36px', 
+                            borderRadius: '8px', 
+                            backgroundColor: 'var(--bg-tertiary)', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center'
+                          }}>
+                            {item.type === 'subscription' ? <Repeat size={16} /> : item.type === 'service' ? <Zap size={16} /> : <Package size={16} />}
+                          </div>
+                          <div className={styles.orderInfo}>
+                            <span className={styles.orderTitle}>{item.name}</span>
+                            <span className={styles.orderSubtitle}>
+                              ₦{item.price.toLocaleString()}
+                              {item.type === 'subscription' && ` / ${item.billingCycle}`}
+                            </span>
+                          </div>
+                        </div>
+                        <QuantityStepper 
+                          value={pendingOrders[item.id] || 0}
+                          onIncrease={() => handleUpdatePendingQuantity(item.id, 1)}
+                          onDecrease={() => handleUpdatePendingQuantity(item.id, -1)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {Object.keys(pendingOrders).length > 0 && (
+                    <motion.div 
+                      className={styles.confirmBar}
+                      initial={{ y: 100 }}
+                      animate={{ y: 0 }}
+                    >
+                      <Button 
+                        variant="accent" 
+                        fullWidth 
+                        onClick={handleConfirmAddItems}
+                        style={{ height: '56px', fontSize: '1.125rem' }}
+                      >
+                        <CheckIcon size={20} style={{ marginRight: '8px' }} />
+                        Add to Check • ₦{Object.entries(pendingOrders).reduce((total, [id, qty]) => {
+                          const price = state.menu.find(m => m.id === id)?.price || 0;
+                          return total + (price * qty);
+                        }, 0).toLocaleString()}
+                      </Button>
+                    </motion.div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};

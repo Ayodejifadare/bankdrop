@@ -1,0 +1,502 @@
+.merchantLayout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+.header {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--border-primary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: -0.04em;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+  padding-bottom: 100px; /* Space for bottom nav */
+}
+
+.bottomNav {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  justify-content: space-around;
+  padding: 12px 0 calc(env(safe-area-inset-bottom) + 12px);
+  z-index: 100;
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.active {
+  color: var(--brand-accent);
+}
+
+.navIcon {
+  margin-bottom: 2px;
+}
+
+/* Card overrides for mobile premium feel */
+.statsContainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.quickActionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-md);
+}
+
+.onboardingForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.inputLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.input {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: border-color var(--transition-fast);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--brand-accent);
+}
+
+.currencyIcon {
+  color: var(--brand-accent);
+  font-weight: 700;
+}
+
+/* Action Hub Overlay */
+.actionHubOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: var(--spacing-xxl) var(--spacing-xl);
+}
+
+.actionHubGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xl);
+}
+
+.actionHubItem {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.actionHubItem:active {
+  transform: scale(0.98);
+  background-color: var(--bg-tertiary);
+}
+
+.actionHubIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background-color: rgba(212, 175, 55, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-accent);
+}
+
+.actionHubLabel {
+  font-weight: 600;
+  font-size: 1.125rem;
+}
+
+/* Profile View */
+.profileContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-bottom: var(--spacing-xxl);
+}
+
+.profileAvatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand-accent), #e8c547);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: var(--spacing-md);
+  box-shadow: 0 8px 16px rgba(212, 175, 55, 0.2);
+}
+
+.profileHandle {
+  color: var(--brand-accent);
+  font-weight: 500;
+  font-size: 0.875rem;
+  margin-bottom: var(--spacing-xl);
+}
+
+.linktreeList {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.linktreeItem {
+  width: 100%;
+  padding: var(--spacing-lg);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--spacing-sm);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.linktreeItem:active {
+  background-color: var(--bg-tertiary);
+  border-color: var(--brand-accent);
+}
+
+.bankCheckCard {
+  width: 100%;
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  text-align: left;
+  margin-bottom: var(--spacing-xl);
+  border-left: 4px solid var(--brand-accent);
+}
+
+.rewardCategory {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.625rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.destructiveBtn {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  color: #ef4444 !important;
+  border: 1px solid rgba(239, 68, 68, 0.2) !important;
+}
+
+.destructiveBtn:active {
+  background-color: rgba(239, 68, 68, 0.2) !important;
+}
+
+/* Mobile-First Refinements */
+.responsiveGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-md);
+}
+
+@media (min-width: 481px) {
+  .responsiveGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.tabGroup {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabItem {
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tabItemActive {
+  color: var(--text-primary);
+  border-bottom-color: var(--brand-accent);
+}
+
+.modalFooter {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-xxl);
+}
+
+@media (min-width: 481px) {
+  .modalFooter {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+}
+
+.inputGroup input,
+.inputGroup select {
+  font-size: 16px !important; /* Prevents iOS zoom */
+}
+
+/* Quantity Stepper */
+.stepper {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  gap: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+.stepperBtn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.stepperBtn:active {
+  transform: scale(0.9);
+  background-color: var(--brand-accent);
+  color: #000;
+}
+
+.stepperBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.stepperCount {
+  min-width: 32px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* Check Item Row */
+.orderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.orderInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.orderTitle {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.orderSubtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.confirmBar {
+  position: sticky;
+  bottom: -var(--spacing-lg);
+  left: -var(--spacing-lg);
+  right: -var(--spacing-lg);
+  padding: var(--spacing-lg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  gap: var(--spacing-md);
+  z-index: 10;
+  margin: calc(var(--spacing-lg) * -1);
+  margin-top: var(--spacing-xl) !important;
+}
+
+.pendingBadge {
+  background-color: var(--brand-accent);
+  color: #000;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-left: 8px;
+}
+
+/* Floating Action Button (FAB) */
+.fab {
+  position: fixed;
+  bottom: 100px; /* Above bottom nav */
+  right: var(--spacing-lg);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background-color: var(--brand-accent);
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(212, 175, 55, 0.4);
+  border: none;
+  cursor: pointer;
+  z-index: 900;
+  transition: all var(--transition-fast);
+}
+
+.fab:active {
+  transform: scale(0.9) rotate(45deg);
+}
+
+/* Header Segment Control */
+.headerSegment {
+  display: flex;
+  background-color: var(--bg-tertiary);
+  padding: 4px;
+  border-radius: var(--radius-full);
+  gap: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+.segmentBtn {
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.segmentBtnActive {
+  background-color: var(--bg-primary);
+  color: var(--brand-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.invoiceList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.invoiceCard {
+  transition: all var(--transition-fast);
+}
+
+.invoiceCard:active {
+  transform: scale(0.98);
+}
+
+.statusPill {
+  font-size: 0.625rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+}
+
+.pillUnpaid { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+.pillPartial { background: rgba(212, 175, 55, 0.1); color: var(--brand-accent); }
+.pillPaid { background: rgba(74, 222, 128, 0.1); color: #4ade80; }
+.pillDraft { background: rgba(156, 163, 175, 0.1); color: var(--text-muted); }

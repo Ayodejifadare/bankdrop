@@ -1,0 +1,575 @@
+/* ==========================================
+   CUSTOMER CHECKOUT UI — Mobile-First
+   ========================================== */
+
+.customerLayout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* ---- Header ---- */
+.checkoutHeader {
+  padding: 16px 20px;
+  text-align: center;
+  border-bottom: 1px solid var(--border-primary);
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.merchantName {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.checkLabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ---- Cart ---- */
+.cartBody {
+  flex: 1;
+  padding: 20px;
+  padding-bottom: 180px;
+  /* space for sticky CTA */
+}
+
+.sectionTitle {
+  font-family: var(--font-heading);
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-md);
+}
+
+.orderItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.orderItem:last-child {
+  border-bottom: none;
+}
+
+.itemLeft {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.itemQty {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.itemName {
+  font-weight: 500;
+}
+
+.itemPrice {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 20px 0 8px;
+  border-top: 2px solid var(--border-primary);
+  margin-top: var(--spacing-md);
+}
+
+.totalLabel {
+  font-family: var(--font-heading);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.totalValue {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--brand-accent);
+}
+
+/* ---- Sticky CTA ---- */
+.stickyCTA {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  padding: 16px 20px calc(env(safe-area-inset-bottom) + 16px);
+  background: linear-gradient(to top, var(--bg-primary) 70%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  z-index: 60;
+}
+
+/* ---- Split Method Chips ---- */
+.methodChips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: var(--spacing-lg);
+  -webkit-overflow-scrolling: touch;
+}
+
+.methodChip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 16px;
+  min-width: 100px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border-primary);
+  background-color: var(--bg-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.methodChip:hover {
+  border-color: var(--text-muted);
+}
+
+.methodChipActive {
+  border-color: var(--brand-accent);
+  background-color: rgba(212, 175, 55, 0.08);
+}
+
+.methodChipIcon {
+  color: var(--text-muted);
+}
+
+.methodChipActive .methodChipIcon {
+  color: var(--brand-accent);
+}
+
+.methodChipLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* ---- Participant Picker ---- */
+.pickableItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border-primary);
+  margin-bottom: var(--spacing-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background-color: var(--bg-secondary);
+}
+
+.pickableItemSelected {
+  border-color: var(--brand-accent);
+  background-color: rgba(212, 175, 55, 0.06);
+}
+
+.pickableItemClaimed {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.claimedTag {
+  font-size: 0.65rem;
+  background-color: var(--bg-tertiary);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+}
+
+.checkbox {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.checkboxChecked {
+  background-color: var(--brand-accent);
+  border-color: var(--brand-accent);
+}
+
+/* ---- Pay with Transfer ---- */
+.transferCard {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  margin-bottom: var(--spacing-lg);
+}
+
+.transferAmount {
+  font-family: var(--font-heading);
+  font-size: 2.5rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.transferSubtext {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: var(--spacing-xl);
+}
+
+.bankDetail {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.bankDetail:last-child {
+  border-bottom: none;
+}
+
+.bankDetailLabel {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.bankDetailValue {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background-color: var(--bg-tertiary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1px solid var(--border-primary);
+}
+
+.copyBtn:hover {
+  background-color: var(--brand-accent);
+  color: #000;
+  border-color: var(--brand-accent);
+}
+
+.timer {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: var(--spacing-md);
+}
+
+.timerValue {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--brand-accent);
+}
+
+/* ---- Linktree Join Page ---- */
+.joinPage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.successIcon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand-accent), #e8c547);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--spacing-xl);
+}
+
+.joinCard {
+  width: 100%;
+  background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+  margin-top: var(--spacing-xl);
+  text-align: center;
+}
+
+.joinCardTitle {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.joinCardSub {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-lg);
+}
+
+.rewardPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  background-color: rgba(212, 175, 55, 0.1);
+  color: var(--brand-accent);
+  font-weight: 600;
+  font-size: 0.875rem;
+  margin-bottom: var(--spacing-lg);
+}
+
+.skipLink {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: var(--spacing-md);
+  cursor: pointer;
+}
+
+.skipLink:hover {
+  color: var(--text-secondary);
+}
+
+/* ---- Reward Banner ---- */
+.rewardBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--spacing-md);
+  transition: all var(--transition-fast);
+}
+
+.rewardsWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.rewardBannerActive {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.12), rgba(212, 175, 55, 0.05));
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.1);
+}
+
+.rewardBannerNext {
+  background-color: var(--bg-secondary);
+  border: 1px dashed var(--border-primary);
+}
+
+.rewardBannerContent {
+  flex: 1;
+}
+
+.rewardBannerText {
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.rewardBannerSubtext {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.rewardBannerApply {
+  padding: 6px 16px;
+  border-radius: var(--radius-full);
+  background-color: var(--brand-accent);
+  color: #000;
+  font-weight: 700;
+  font-size: 0.75rem;
+  cursor: pointer;
+  border: none;
+}
+
+.discountRow {
+  display: flex;
+  justify-content: space-between;
+  color: #4ade80;
+  font-size: 0.875rem;
+  padding: 4px 0;
+}
+
+/* ---- Stepper ---- */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  justify-content: center;
+  margin: var(--spacing-xl) 0;
+}
+
+.stepperBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--border-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background: var(--bg-secondary);
+}
+
+.stepperBtn:hover {
+  border-color: var(--brand-accent);
+}
+
+.stepperValue {
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  font-weight: 700;
+  min-width: 60px;
+  text-align: center;
+}
+
+.splitResult {
+  text-align: center;
+  padding: var(--spacing-lg);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+  margin-bottom: var(--spacing-lg);
+}
+
+.splitResultAmount {
+  font-family: var(--font-heading);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--brand-accent);
+}
+
+.splitResultLabel {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ---- Inline Input ---- */
+.inlineInput {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  text-align: center;
+  width: 100%;
+  transition: border-color var(--transition-fast);
+}
+
+.inlineInput:focus {
+  outline: none;
+  border-color: var(--brand-accent);
+}
+
+/* ---- Info Box ---- */
+.infoBox {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-secondary);
+  margin-bottom: var(--spacing-lg);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ---- Participant List ---- */
+.participantRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.participantAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.7rem;
+}
+
+.participantName {
+  flex: 1;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.participantShare {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.participantPaid {
+  color: #4ade80;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* ---- Back button ---- */
+.backBtn {
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 4px;
+}
