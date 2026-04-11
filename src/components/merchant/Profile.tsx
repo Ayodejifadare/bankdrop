@@ -18,7 +18,7 @@ interface ProfileProps {
 }
 
 export const ProfileView: React.FC<ProfileProps> = ({ onBack }) => {
-  const { state } = useMerchant();
+  const { state, logout } = useMerchant();
 
   const links = [
     { label: 'View Public Menu', icon: <ExternalLink size={20} /> },
@@ -33,7 +33,12 @@ export const ProfileView: React.FC<ProfileProps> = ({ onBack }) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button onClick={onBack} style={{ color: 'var(--text-secondary)' }}>Back</button>
           <h2 style={{ fontSize: '1.25rem' }}>Merchant Account</h2>
-          <button style={{ color: 'var(--text-secondary)' }}><LogOut size={20} /></button>
+          <button 
+            onClick={logout}
+            style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            <LogOut size={20} />
+          </button>
         </div>
       </header>
 

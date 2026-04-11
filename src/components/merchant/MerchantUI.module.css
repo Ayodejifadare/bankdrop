@@ -500,3 +500,82 @@
 .pillPartial { background: rgba(212, 175, 55, 0.1); color: var(--brand-accent); }
 .pillPaid { background: rgba(74, 222, 128, 0.1); color: #4ade80; }
 .pillDraft { background: rgba(156, 163, 175, 0.1); color: var(--text-muted); }
+
+/* Unified Merchant Auth Styles */
+.authContainer {
+  padding: var(--spacing-xxl) var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  justify-content: center;
+  max-width: 400px;
+  margin: 0 auto;
+  gap: var(--spacing-xl);
+}
+
+.authBrand {
+  text-align: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.authTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+
+.authSubtitle {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-bottom: var(--spacing-xl);
+  line-height: 1.5;
+}
+
+.otpGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--spacing-sm);
+  margin: var(--spacing-xl) 0;
+}
+
+.otpField {
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  transition: all var(--transition-fast);
+}
+
+.otpField:focus {
+  outline: none;
+  border-color: var(--brand-accent);
+  box-shadow: 0 0 0 2px rgba(181, 153, 82, 0.2);
+}
+
+.authFooter {
+  margin-top: auto;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.terminalTag {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  font-size: 0.625rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin-left: 6px;
+}

@@ -10,6 +10,7 @@ import {
   Gift
 } from 'lucide-react';
 import { useMerchant } from '../../context/MerchantContext';
+import { MerchantAuth } from './MerchantAuth';
 import { MerchantOnboarding } from './Onboarding';
 import { MenuManager } from './Menu';
 import { CheckManager } from './Checks';
@@ -57,24 +58,22 @@ const Dashboard: React.FC<{ onTabChange: (tab: number) => void }> = ({ onTabChan
 
       <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Quick Actions</h3>
       <div className={styles.quickActionGrid}>
-        <Button 
-          variant="secondary" 
-          fullWidth 
-          style={{ minHeight: '100px', flexDirection: 'column', gap: '8px' }}
+        <button 
+          className={styles.linktreeItem}
+          style={{ flexDirection: 'column', gap: '8px' }}
           onClick={() => onTabChange(1)}
         >
           <BookOpen color="var(--brand-accent)" size={32} />
           <span>Edit Menu</span>
-        </Button>
-        <Button 
-          variant="secondary" 
-          fullWidth 
-          style={{ minHeight: '100px', flexDirection: 'column', gap: '8px' }}
+        </button>
+        <button 
+          className={styles.linktreeItem}
+          style={{ flexDirection: 'column', gap: '8px' }}
           onClick={() => onTabChange(3)}
         >
           <QrCode color="var(--brand-accent)" size={32} />
           <span>View Terminal QR</span>
-        </Button>
+        </button>
       </div>
 
       <div style={{ marginTop: 'var(--spacing-xxl)' }}>
@@ -98,12 +97,16 @@ const Dashboard: React.FC<{ onTabChange: (tab: number) => void }> = ({ onTabChan
 
 // Main Layout Wrapper
 export const MerchantApp: React.FC = () => {
-  const { state } = useMerchant();
+  const { state, isAuthenticated } = useMerchant();
   const [activeTab, setActiveTab] = useState(0);
   const [isActionHubOpen, setIsActionHubOpen] = useState(false);
   const [viewProfile, setViewProfile] = useState(false);
   const [segmentView, setSegmentView] = useState<'checks' | 'invoices'>('checks');
   const [isBuildingInvoice, setIsBuildingInvoice] = useState(false);
+
+  if (!isAuthenticated) {
+    return <MerchantAuth />;
+  }
 
   // If bank info isn't linked, force onboarding
   if (!state.bankAccount) {
@@ -160,7 +163,7 @@ export const MerchantApp: React.FC = () => {
           <motion.button 
             whileTap={{ scale: 0.9 }} 
             onClick={() => setViewProfile(true)}
-            style={{ color: viewProfile ? 'var(--brand-accent)' : 'var(--text-primary)' }}
+            style={{ color: viewProfile ? 'var(--brand-accent)' : 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}
           >
             <User size={24} />
           </motion.button>
