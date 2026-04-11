@@ -4,6 +4,7 @@ import { WalletManager } from './WalletManager';
 import { RewardsTracker } from './RewardsTracker';
 import { RecentActivity } from './RecentActivity';
 import { BottomNav } from './BottomNav';
+import { ProfileAuth } from './ProfileAuth';
 import type { ProfileTab } from '../../types/profile';
 import styles from './ProfileUI.module.css';
 import { LogOut, ChevronLeft, User, Bell } from 'lucide-react';
@@ -14,8 +15,12 @@ interface Props {
 }
 
 export const CustomerProfileApp: React.FC<Props> = ({ onExit }) => {
-  const { user } = useCustomerProfile();
+  const { user, isAuthenticated, logout } = useCustomerProfile();
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
+
+  if (!isAuthenticated) {
+    return <ProfileAuth onExit={onExit} />;
+  }
 
   const renderContent = () => {
     switch (activeTab) {
@@ -33,7 +38,7 @@ export const CustomerProfileApp: React.FC<Props> = ({ onExit }) => {
             
             <footer style={{ padding: 'var(--spacing-xl)', marginBottom: 'var(--spacing-xxl)' }}>
               <button 
-                onClick={onExit}
+                onClick={logout}
                 style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
