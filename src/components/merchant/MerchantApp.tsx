@@ -174,7 +174,7 @@ export const MerchantApp: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className={styles.title} onClick={() => { setActiveTab(0); setViewProfile(false); }} style={{ cursor: 'pointer' }}>
+          <div className={styles.title} onClick={() => { setActiveTab(0); setViewProfile(false); setViewActivityLog(false); }} style={{ cursor: 'pointer' }}>
             BANKDROP TERMINAL
           </div>
         )}
@@ -207,36 +207,42 @@ export const MerchantApp: React.FC = () => {
       {!viewProfile && (
         <div className={styles.bottomNav}>
           <div 
-            className={`${styles.navItem} ${activeTab === 0 ? styles.active : ''}`}
-            onClick={() => setActiveTab(0)}
+            className={`${styles.navItem} ${activeTab === 0 && !viewActivityLog && !viewProfile ? styles.active : ''}`}
+            onClick={() => { setActiveTab(0); setViewActivityLog(false); setViewProfile(false); }}
           >
             <LayoutDashboard size={24} className={styles.navIcon} />
             <span>Dashboard</span>
           </div>
           <div 
-            className={`${styles.navItem} ${activeTab === 1 ? styles.active : ''}`}
-            onClick={() => setActiveTab(1)}
+            className={`${styles.navItem} ${activeTab === 1 && !viewActivityLog && !viewProfile ? styles.active : ''}`}
+            onClick={() => { setActiveTab(1); setViewActivityLog(false); setViewProfile(false); }}
           >
             <BookOpen size={24} className={styles.navIcon} />
             <span>Menu</span>
           </div>
           <div 
-            className={`${styles.navItem} ${activeTab === 2 ? styles.active : ''}`}
-            onClick={() => setActiveTab(2)}
+            className={`${styles.navItem} ${activeTab === 2 && !viewActivityLog && !viewProfile ? styles.active : ''}`}
+            onClick={() => { 
+              setActiveTab(2); 
+              setSegmentView('checks');
+              setIsBuildingInvoice(false);
+              setViewActivityLog(false); 
+              setViewProfile(false); 
+            }}
           >
             <CreditCard size={24} className={styles.navIcon} />
             <span>Checks</span>
           </div>
           <div 
-            className={`${styles.navItem} ${activeTab === 3 ? styles.active : ''}`}
-            onClick={() => setActiveTab(3)}
+            className={`${styles.navItem} ${activeTab === 3 && !viewActivityLog && !viewProfile ? styles.active : ''}`}
+            onClick={() => { setActiveTab(3); setViewActivityLog(false); setViewProfile(false); }}
           >
             <QrCode size={24} className={styles.navIcon} />
             <span>QR</span>
           </div>
           <div 
-            className={`${styles.navItem} ${activeTab === 4 ? styles.active : ''}`}
-            onClick={() => setActiveTab(4)}
+            className={`${styles.navItem} ${activeTab === 4 && !viewActivityLog && !viewProfile ? styles.active : ''}`}
+            onClick={() => { setActiveTab(4); setViewActivityLog(false); setViewProfile(false); }}
           >
             <Gift size={24} className={styles.navIcon} />
             <span>Rewards</span>

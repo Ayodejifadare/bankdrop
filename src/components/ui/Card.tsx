@@ -9,6 +9,7 @@ interface CardProps {
   footer?: React.ReactNode;
   variant?: 'default' | 'elevated';
   className?: string;
+  onClick?: () => void;
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -18,6 +19,7 @@ export const Card: React.FC<CardProps> = ({
   footer,
   variant = 'default',
   className = '',
+  onClick,
 }) => {
   const classes = [
     styles.card,
@@ -31,6 +33,7 @@ export const Card: React.FC<CardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: 'easeOut' }}
       className={classes}
+      onClick={onClick}
     >
       <div className={styles.cardContent}>
         {(title || description) && (

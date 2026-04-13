@@ -81,6 +81,14 @@ export interface MerchantActivity {
   timestamp: string;
 }
 
+export interface PastOrder {
+  id: string;
+  checkId: string;
+  orders: OrderItem[];
+  total: number;
+  timestamp: string;
+}
+
 export interface MerchantState {
   name: string;
   bankAccount: BankAccount | null;
@@ -90,6 +98,7 @@ export interface MerchantState {
   invoices: Invoice[];
   pendingVerifications: PendingVerification[];
   activities: MerchantActivity[];
+  orderHistory: PastOrder[];
 }
 
 interface MerchantContextType {
@@ -159,6 +168,7 @@ const DEFAULT_STATE: MerchantState = {
       timestamp: new Date().toISOString()
     }
   ],
+  orderHistory: [],
 };
 
 export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -169,7 +179,8 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return { 
         ...DEFAULT_STATE, 
         ...parsed, 
-        activities: parsed.activities || DEFAULT_STATE.activities 
+        activities: parsed.activities || DEFAULT_STATE.activities,
+        orderHistory: parsed.orderHistory || DEFAULT_STATE.orderHistory
       };
     }
     return DEFAULT_STATE;
@@ -346,12 +357,28 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const clearCheck = (id: string) => {
-    setState(prev => ({
-      ...prev,
-      checks: prev.checks.map(c => 
-        c.id === id ? { ...c, status: 'open', orders: [], total: 0 } : c
-      )
-    }));
+    setState(prev => {
+      const check = prev.checks.find(c => c.id === id);
+      let newOrderHistory = [...prev.orderHistory];
+
+      if (check && check.orders.length > 0) {
+        newOrderHistory.unshift({
+          id: `ord_${Date.now()}`,
+          checkId: id,
+          orders: [...check.orders],
+          total: check.total,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      return {
+        ...prev,
+        checks: prev.checks.map(c => 
+          c.id === id ? { ...c, status: 'open', orders: [], total: 0 } : c
+        ),
+        orderHistory: newOrderHistory
+      };
+    });
   };
 
   const addReward = (reward: Reward) => {
