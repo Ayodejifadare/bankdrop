@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
 import { useCustomer } from '../../context/CustomerContext';
 import { useCustomerProfile } from '../../context/CustomerProfileContext';

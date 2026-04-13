@@ -30,6 +30,7 @@ export const ProfileAuth: React.FC<Props> = () => {
     if (step !== 'email') return;
     const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (!isEmailValid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEmailChecked(false);
       return;
     }
@@ -54,12 +55,13 @@ export const ProfileAuth: React.FC<Props> = () => {
 
   // Reset flow if email changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAutoAdvanceEnabled(true); // Re-enable auto-advance for new intents
     if (step !== 'email') {
       setStep('email');
       setEmailChecked(false);
     }
-  }, [email]);
+  }, [email, step]);
 
   const handleMainSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

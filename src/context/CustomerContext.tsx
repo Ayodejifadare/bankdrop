@@ -55,6 +55,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (checkId) {
       const saved = localStorage.getItem(`check_split_${checkId}`);
       if (saved) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSplitSession(JSON.parse(saved));
       } else {
         setSplitSession(null);
@@ -154,8 +155,8 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       await new Promise(r => setTimeout(r, 400));
       
       localStorage.setItem(`check_split_${splitSession.checkId}`, JSON.stringify(optimisticSession));
-    } catch (err) {
-      console.error('Persistence failed, rolling back:', err);
+    } catch (_err) {
+      console.error('Persistence failed, rolling back:', _err);
       // Rollback!
       setSplitSession(previousSession);
       setSyncError('Failed to apply reward. Please try again.');
@@ -179,7 +180,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       await new Promise(r => setTimeout(r, 400));
       localStorage.setItem(`check_split_${splitSession.checkId}`, JSON.stringify(optimisticSession));
-    } catch (err) {
+    } catch (_err) {
       setSplitSession(previousSession);
       setSyncError('Failed to remove reward. Please try again.');
     }

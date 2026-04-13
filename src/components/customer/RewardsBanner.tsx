@@ -1,7 +1,10 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
 import { useCustomerProfile } from '../../context/CustomerProfileContext';
-import { Gift, Sparkles, TrendingUp } from 'lucide-react';
+import { useCustomer } from '../../context/CustomerContext';
+import { Button } from '../ui/Button';
+import { Gift, Sparkles } from 'lucide-react';
+import { motion } from 'framer-motion';
 import styles from './CustomerUI.module.css';
 
 interface Props {
