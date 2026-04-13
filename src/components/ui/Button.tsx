@@ -32,7 +32,7 @@ export const Button: React.FC<ButtonProps> = ({
     onDragStart: _ods, 
     onDragEnd: _ode, 
     ...safeProps 
-  } = (props as /* eslint-disable-next-line @typescript-eslint/no-explicit-any */ any);
+  } = props as Record<string, unknown>;
 
   return (
     <motion.button

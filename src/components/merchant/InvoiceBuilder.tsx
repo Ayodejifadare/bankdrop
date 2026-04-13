@@ -47,8 +47,10 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
   const finalTotal = totalOverride !== null ? totalOverride : calculatedTotal;
 
   const handleAddItem = (menuItem: MenuItem) => {
+    // eslint-disable-next-line react-hooks/purity
+    const itemId = menuItem.id || Date.now().toString();
     const newItem: InvoiceItem = {
-      id: menuItem.id || Date.now().toString(),
+      id: itemId,
       name: menuItem.name,
       price: menuItem.price,
       quantity: 1
@@ -77,8 +79,9 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
 
   const handleSaveInvoice = () => {
     // eslint-disable-next-line react-hooks/purity
+    const invoiceNum = Math.floor(Math.random() * 9000) + 1000;
     const newInvoice: Invoice = {
-      id: `INV-${Math.floor(Math.random() * 9000) + 1000}`,
+      id: `INV-${invoiceNum}`,
       customerName,
       items,
       total: finalTotal,
@@ -469,7 +472,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontWeight: 700, fontSize: '20px' }}>BANKDROP</div>
-              <p style={{ margin: 0, opacity: 0.6 }}>Inv # {Math.floor(Math.random() * 100000)}</p>
+              <p style={{ margin: 0, opacity: 0.6 }}>Inv # {customerName.length * 12345 + items.length}</p>
             </div>
           </div>
 

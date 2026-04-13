@@ -27,8 +27,11 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
     if (invoiceId) {
       const invoice = merchant.invoices.find(inv => inv.id === invoiceId);
       if (invoice) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPayAmount(invoice.total);
+         
         setScreen('pay');
+         
         setIsInitialized(true);
         return;
       }
@@ -41,8 +44,11 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
 
     // 1. Check if check is already PAID
     if (check.status === 'paid') {
-      setScreen('pay'); // Or a special 'receipt' screen, but PayTransfer handles 'confirmed' state well
+       
+      setScreen('pay');
+       
       setPayAmount(check.total);
+       
       setIsInitialized(true);
       return;
     }
@@ -50,20 +56,24 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
     // 2. If check is empty/open, always clear any ghost session and show cart
     if (check.status === 'open') {
       clearSession(checkId);
+       
       setScreen('cart');
+       
       setIsInitialized(true);
       return;
     }
 
-    // 2. If check is active, see if a split session already exists
+    // 3. If check is active, see if a split session already exists
     const savedSplit = localStorage.getItem(`check_split_${checkId}`);
     if (savedSplit && !isInitialized) {
       joinSplitSession(checkId);
-      setScreen('pick'); // Jump straight to picking items
+       
+      setScreen('pick');
     }
     
+     
     setIsInitialized(true);
-  }, [checkId, merchant.checks, setCheckId, joinSplitSession, clearSession, isInitialized]);
+  }, [checkId, invoiceId, merchant.invoices, merchant.checks, setCheckId, joinSplitSession, clearSession, isInitialized]);
 
   if (!isInitialized) return null;
 
