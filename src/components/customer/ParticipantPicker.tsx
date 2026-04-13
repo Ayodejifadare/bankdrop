@@ -24,6 +24,12 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
   }, [checkId, splitSession, joinSplitSession]);
 
   const check = merchant.checks.find(c => c.id === checkId);
+  const me = splitSession?.participants.find(p => p.id === participantId);
+  const myName = me?.name || `Guest ${participantId.slice(0, 3)}`;
+  
+  const discount = splitSession?.discount || 0;
+  const appliedBy = splitSession?.appliedBy || '';
+  const isAppliedByMe = appliedBy === myName;
 
   const orderItems = useMemo(() => {
     if (!check) return [];
@@ -39,7 +45,6 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
     });
   }, [check, merchant.menu]);
 
-  const me = splitSession?.participants.find(p => p.id === participantId);
   const [selectedIndices, setSelectedIndices] = useState<number[]>(me?.selectedItemIndices || []);
 
   // Which items are claimed by OTHER participants
@@ -59,14 +64,15 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
       const next = prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index];
       // Persist to session
       if (me && splitSession) {
-        const share = next.reduce((acc, i) => acc + (orderItems[i]?.total || 0), 0);
-        updateParticipant(splitSession.id, { ...me, selectedItemIndices: next, share });
+        const itemShare = next.reduce((acc, i) => acc + (orderItems[i]?.total || 0), 0);
+        updateParticipant(splitSession.id, { ...me, selectedItemIndices: next, share: itemShare });
       }
       return next;
     });
   };
 
-  const myShare = selectedIndices.reduce((acc, i) => acc + (orderItems[i]?.total || 0), 0);
+  const itemShare = selectedIndices.reduce((acc, i) => acc + (orderItems[i]?.total || 0), 0);
+  const myFinalShare = isAppliedByMe ? Math.max(0, itemShare - discount) : itemShare;
 
   return (
     <div className={styles.customerLayout}>
@@ -82,7 +88,7 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
 
       <div className={styles.cartBody}>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: 'var(--spacing-lg)' }}>
-          Tap the items you ordered to calculate your share.
+          Tap the items you ordered. {isAppliedByMe ? 'Your reward will be applied to your share.' : 'Rewards are applied per check.'}
         </p>
 
         {orderItems.map((item) => {
@@ -114,8 +120,11 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
         })}
 
         <div className={styles.totalRow}>
-          <span className={styles.totalLabel}>My Share</span>
-          <span className={styles.totalValue}>₦{myShare.toLocaleString()}</span>
+          <div style={{ flex: 1 }}>
+            <span className={styles.totalLabel}>Subtotal</span>
+            {isAppliedByMe && <div style={{ fontSize: '0.75rem', color: 'var(--brand-accent)', fontWeight: 600 }}>- ₦{discount.toLocaleString()} Reward</div>}
+          </div>
+          <span className={styles.totalValue}>₦{myFinalShare.toLocaleString()}</span>
         </div>
       </div>
 
@@ -124,10 +133,10 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
           variant="accent"
           fullWidth
           size="large"
-          onClick={() => onPay(myShare)}
-          disabled={myShare <= 0}
+          onClick={() => onPay(myFinalShare)}
+          disabled={myFinalShare <= 0 && itemShare <= 0}
         >
-          Pay My Share ₦{myShare.toLocaleString()}
+          Pay My Share ₦{myFinalShare.toLocaleString()}
         </Button>
       </div>
     </div>

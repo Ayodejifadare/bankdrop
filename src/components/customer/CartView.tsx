@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
 import { useCustomer } from '../../context/CustomerContext';
+import { useCustomerProfile } from '../../context/CustomerProfileContext';
 import { Button } from '../ui/Button';
 import { RewardsBanner } from './RewardsBanner';
+import { CheckoutAuth } from './CheckoutAuth';
 import { Landmark, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import styles from './CustomerUI.module.css';
@@ -16,10 +18,13 @@ interface Props {
 
 export const CartView: React.FC<Props> = ({ checkId, onPay, onSplit, onBack }) => {
   const { state: merchant } = useMerchant();
-  const { isSignedIn } = useCustomer();
-  const [discount, setDiscount] = useState(0);
+  const { splitSession } = useCustomer();
+  const { isAuthenticated } = useCustomerProfile();
 
   const check = merchant.checks.find(c => c.id === checkId);
+  const subtotal = check?.total || 0;
+  const discount = splitSession?.discount || 0;
+  const finalTotal = Math.max(0, subtotal - discount);
 
   const orderItems = useMemo(() => {
     if (!check) return [];
@@ -34,8 +39,7 @@ export const CartView: React.FC<Props> = ({ checkId, onPay, onSplit, onBack }) =
     });
   }, [check, merchant.menu]);
 
-  const subtotal = check?.total || 0;
-  const finalTotal = Math.max(0, subtotal - discount);
+
 
   if (!check || check.status === 'open') {
     return (
@@ -98,10 +102,12 @@ export const CartView: React.FC<Props> = ({ checkId, onPay, onSplit, onBack }) =
           <span className={styles.totalValue}>₦{finalTotal.toLocaleString()}</span>
         </div>
 
-        {isSignedIn && (
+        {isAuthenticated ? (
           <div style={{ marginTop: 'var(--spacing-lg)' }}>
-            <RewardsBanner total={subtotal} onDiscountChange={setDiscount} />
+            <RewardsBanner total={subtotal} />
           </div>
+        ) : (
+          <CheckoutAuth />
         )}
       </div>
 

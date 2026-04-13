@@ -86,13 +86,15 @@ const App: React.FC = () => {
   // ---- Customer Checkout ----
   if (route.view === 'customer' && (route.checkId || route.invoiceId)) {
     return (
-      <Suspense fallback={<LoadingScreen />}>
-        <CustomerApp
-          checkId={route.checkId || ''}
-          invoiceId={route.invoiceId}
-          onExit={() => navigate('')}
-        />
-      </Suspense>
+      <CustomerProfileProvider>
+        <Suspense fallback={<LoadingScreen />}>
+          <CustomerApp
+            checkId={route.checkId || ''}
+            invoiceId={route.invoiceId}
+            onExit={() => navigate('')}
+          />
+        </Suspense>
+      </CustomerProfileProvider>
     );
   }
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCustomerProfile } from '../../context/CustomerProfileContext';
 import { Input } from '../ui/Input';
@@ -22,16 +22,64 @@ export const ProfileAuth: React.FC<Props> = () => {
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isNewUser, setIsNewUser] = useState(false);
+  const [emailChecked, setEmailChecked] = useState(false);
+  const [autoAdvanceEnabled, setAutoAdvanceEnabled] = useState(true);
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (step === 'email') {
+  // Debounced Email Autocheck
+  useEffect(() => {
+    if (step !== 'email') return;
+    const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!isEmailValid) {
+      setEmailChecked(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
       const { exists } = await checkEmail(email);
-      if (exists) {
-        setStep('otp');
+      setIsNewUser(!exists);
+      setEmailChecked(true);
+      
+      // AUTO-ADVANCE: Only if we haven't manually 'gone back'
+      if (autoAdvanceEnabled) {
+        if (exists) {
+          setStep('otp');
+        } else {
+          setStep('signup_reveal');
+        }
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [email, step, checkEmail, autoAdvanceEnabled]);
+
+  // Reset flow if email changes
+  useEffect(() => {
+    setAutoAdvanceEnabled(true); // Re-enable auto-advance for new intents
+    if (step !== 'email') {
+      setStep('email');
+      setEmailChecked(false);
+    }
+  }, [email]);
+
+  const handleMainSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (step === 'email') {
+      // If we haven't finished checking yet, check now
+      if (!emailChecked) {
+        const { exists } = await checkEmail(email);
+        setIsNewUser(!exists);
+        setEmailChecked(true);
+        // Wait a small tick so user sees the button change? 
+        // Or just move them immediately since they clicked.
+        if (exists) {
+          setStep('otp');
+        } else {
+          setStep('signup_reveal');
+        }
       } else {
-        setIsNewUser(true);
-        setStep('signup_reveal');
+        // Already checked, just move to next step
+        setStep(isNewUser ? 'signup_reveal' : 'otp');
       }
     } else if (step === 'signup_reveal') {
       setStep('otp');
@@ -44,6 +92,19 @@ export const ProfileAuth: React.FC<Props> = () => {
     } else {
       await login(email, code);
     }
+  };
+
+  const getButtonLabel = () => {
+    if (isLoadingAuth) return <Loader2 className="animate-spin" size={20} />;
+    
+    if (step === 'signup_reveal') return <>Continue <ChevronRight size={18} style={{ marginLeft: '4px' }} /></>;
+    
+    if (step === 'email') {
+      if (!emailChecked) return <>Continue <ChevronRight size={18} style={{ marginLeft: '4px' }} /></>;
+      return isNewUser ? 'Sign up' : 'Log in';
+    }
+    
+    return 'Continue';
   };
 
   return (
@@ -64,13 +125,13 @@ export const ProfileAuth: React.FC<Props> = () => {
               exit={{ opacity: 0, y: -10 }}
             >
               <h1 className={styles.authTitle}>
-                {isNewUser ? 'Create your Link account' : 'Welcome to Bankdrop'}
+                {isNewUser && emailChecked ? 'Create your Link account' : 'Welcome to Bankdrop'}
               </h1>
               <p className={styles.authSubtitle}>
                 Log in or sign up to get started.
               </p>
 
-              <form onSubmit={handleEmailSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+              <form onSubmit={handleMainSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
                 <Input
                   label="Email"
                   type="email"
@@ -79,7 +140,8 @@ export const ProfileAuth: React.FC<Props> = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   icon={<Mail size={18} />}
                   required
-                  disabled={step === 'signup_reveal' || isLoadingAuth}
+                  disabled={isLoadingAuth}
+                  rightAddon={isLoadingAuth && step === 'email' && <Loader2 className="animate-spin" size={20} style={{ color: 'var(--brand-accent)' }} />}
                 />
 
                 <AnimatePresence>
@@ -117,12 +179,10 @@ export const ProfileAuth: React.FC<Props> = () => {
                   fullWidth 
                   size="large" 
                   type="submit" 
-                  disabled={isLoadingAuth}
+                  disabled={isLoadingAuth || (step === 'signup_reveal' && (!name || !mobile))}
                   style={{ marginTop: 'var(--spacing-md)' }}
                 >
-                  {isLoadingAuth ? <Loader2 className="animate-spin" size={20} /> : (
-                    <>Continue <ChevronRight size={18} style={{ marginLeft: '4px' }} /></>
-                  )}
+                  {getButtonLabel()}
                 </Button>
               </form>
             </motion.div>
@@ -134,7 +194,10 @@ export const ProfileAuth: React.FC<Props> = () => {
               exit={{ opacity: 0, x: -20 }}
             >
               <button 
-                onClick={() => setStep(isNewUser ? 'signup_reveal' : 'email')} 
+                onClick={() => {
+                  setAutoAdvanceEnabled(false);
+                  setStep(isNewUser ? 'signup_reveal' : 'email');
+                }} 
                 style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)', marginBottom: 'var(--spacing-xl)', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
               >
                 <ArrowLeft size={16} /> Back

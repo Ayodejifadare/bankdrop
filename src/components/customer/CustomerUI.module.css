@@ -428,6 +428,18 @@
   border: none;
 }
 
+.syncError {
+  background-color: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #ef4444;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
 .discountRow {
   display: flex;
   justify-content: space-between;

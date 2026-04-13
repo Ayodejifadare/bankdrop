@@ -14,8 +14,11 @@ interface CustomerContextType {
   joinSplitSession: (checkId: string) => SplitSession | null;
   updateParticipant: (sessionId: string, participant: Participant) => void;
   changeSplitMethod: (method: SplitMethod) => void;
+  applySessionReward: (amount: number, name: string) => void;
+  removeSessionReward: () => void;
   markPaid: () => void;
   clearSession: (checkId: string) => void;
+  syncError: string | null;
 }
 
 const CustomerContext = createContext<CustomerContextType | undefined>(undefined);
@@ -37,18 +40,38 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [splitSession, setSplitSession] = useState<SplitSession | null>(null);
   const [isSignedIn, setSignedIn] = useState(false);
   const [appliedRewardId, setAppliedRewardId] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  // Auto-clear sync errors
+  useEffect(() => {
+    if (syncError) {
+      const t = setTimeout(() => setSyncError(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [syncError]);
 
   // Load split session from localStorage when checkId changes
   useEffect(() => {
     if (checkId) {
       const saved = localStorage.getItem(`check_split_${checkId}`);
       if (saved) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSplitSession(JSON.parse(saved));
       } else {
         setSplitSession(null);
       }
     }
+  }, [checkId]);
+
+  // LIVE SYNC: Listen for storage events from other tabs to keep multiplayer state in sync
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (checkId && e.key === `check_split_${checkId}` && e.newValue) {
+        setSplitSession(JSON.parse(e.newValue));
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, [checkId]);
 
   // Persist split session changes
@@ -108,6 +131,60 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     persistSession(updated);
   }, [splitSession, persistSession]);
 
+  /**
+   * OPTIMISTIC UI: applySessionReward
+   */
+  const applySessionReward = useCallback(async (amount: number, name: string) => {
+    if (!splitSession) return;
+    
+    // 1. Capture previous state for rollback
+    const previousSession = { ...splitSession };
+    
+    // 2. Optimistically update state
+    const optimisticSession = {
+      ...splitSession,
+      discount: amount,
+      appliedBy: name
+    };
+    setSplitSession(optimisticSession);
+    
+    // 3. Background Persistence (Simulated)
+    try {
+      // Small artificial delay to show the "snap"
+      await new Promise(r => setTimeout(r, 400));
+      
+      localStorage.setItem(`check_split_${splitSession.checkId}`, JSON.stringify(optimisticSession));
+    } catch (err) {
+      console.error('Persistence failed, rolling back:', err);
+      // Rollback!
+      setSplitSession(previousSession);
+      setSyncError('Failed to apply reward. Please try again.');
+    }
+  }, [splitSession]);
+
+  /**
+   * OPTIMISTIC UI: removeSessionReward
+   */
+  const removeSessionReward = useCallback(async () => {
+    if (!splitSession) return;
+    
+    const previousSession = { ...splitSession };
+    
+    const optimisticSession = { ...splitSession };
+    delete optimisticSession.discount;
+    delete optimisticSession.appliedBy;
+    
+    setSplitSession(optimisticSession);
+    
+    try {
+      await new Promise(r => setTimeout(r, 400));
+      localStorage.setItem(`check_split_${splitSession.checkId}`, JSON.stringify(optimisticSession));
+    } catch (err) {
+      setSplitSession(previousSession);
+      setSyncError('Failed to remove reward. Please try again.');
+    }
+  }, [splitSession]);
+
   const markPaid = useCallback(() => {
     if (!splitSession) return;
     const updated = {
@@ -129,7 +206,8 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       checkId, splitSession, participantId, isSignedIn, appliedRewardId,
       setCheckId, setSignedIn, applyReward: setAppliedRewardId,
       createSplitSession, joinSplitSession, updateParticipant,
-      changeSplitMethod, markPaid, clearSession,
+      changeSplitMethod, applySessionReward, removeSessionReward, markPaid, clearSession,
+      syncError
     }}>
       {children}
     </CustomerContext.Provider>

@@ -14,6 +14,8 @@ export interface SplitSession {
   method: SplitMethod;
   participants: Participant[];
   createdAt: number;
+  discount?: number;
+  appliedBy?: string; // name of participant
 }
 
 export interface CustomerCheckout {

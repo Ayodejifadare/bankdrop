@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCustomer } from '../../context/CustomerContext';
 import { useMerchant } from '../../context/MerchantContext';
+import { useCustomerProfile } from '../../context/CustomerProfileContext';
 import { CartView } from './CartView';
 import { SplitSession } from './SplitSession';
 import { ParticipantPicker } from './ParticipantPicker';
@@ -16,10 +17,22 @@ interface Props {
 
 export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => {
   const { state: merchant } = useMerchant();
-  const { setCheckId, joinSplitSession, clearSession } = useCustomer();
+  const { setCheckId, splitSession, joinSplitSession, clearSession, removeSessionReward, participantId } = useCustomer();
+  const { isAuthenticated, user } = useCustomerProfile();
   const [screen, setScreen] = useState<Screen>('cart');
   const [payAmount, setPayAmount] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // Logout / Session Protection
+  useEffect(() => {
+    if (!isAuthenticated && splitSession?.appliedBy) {
+      // If we log out and we were the ones who applied the reward, remove it
+      const myName = user?.name || `Guest ${participantId.slice(0, 3)}`;
+      if (splitSession.appliedBy === myName) {
+        removeSessionReward();
+      }
+    }
+  }, [isAuthenticated, splitSession, user, participantId, removeSessionReward]);
 
   // Robust Screen Logic
   useEffect(() => {
@@ -27,11 +40,8 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
     if (invoiceId) {
       const invoice = merchant.invoices.find(inv => inv.id === invoiceId);
       if (invoice) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPayAmount(invoice.total);
-         
         setScreen('pay');
-         
         setIsInitialized(true);
         return;
       }
@@ -44,11 +54,8 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
 
     // 1. Check if check is already PAID
     if (check.status === 'paid') {
-       
       setScreen('pay');
-       
       setPayAmount(check.total);
-       
       setIsInitialized(true);
       return;
     }
@@ -56,9 +63,7 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
     // 2. If check is empty/open, always clear any ghost session and show cart
     if (check.status === 'open') {
       clearSession(checkId);
-       
       setScreen('cart');
-       
       setIsInitialized(true);
       return;
     }
@@ -67,11 +72,9 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
     const savedSplit = localStorage.getItem(`check_split_${checkId}`);
     if (savedSplit && !isInitialized) {
       joinSplitSession(checkId);
-       
       setScreen('pick');
     }
     
-     
     setIsInitialized(true);
   }, [checkId, invoiceId, merchant.invoices, merchant.checks, setCheckId, joinSplitSession, clearSession, isInitialized]);
 

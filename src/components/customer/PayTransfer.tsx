@@ -180,7 +180,7 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
                 </div>
               )}
 
-              <Button variant="accent" fullWidth size="large">
+              <Button variant="accent" fullWidth size="large" onClick={() => window.location.hash = '#/profile'}>
                 Join & Lock In Reward
               </Button>
 

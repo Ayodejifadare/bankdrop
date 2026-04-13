@@ -1,87 +1,105 @@
 import React, { useEffect, useMemo } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
-import { useCustomer } from '../../context/CustomerContext';
+import { useCustomerProfile } from '../../context/CustomerProfileContext';
 import { Gift, Sparkles, TrendingUp } from 'lucide-react';
 import styles from './CustomerUI.module.css';
 
 interface Props {
   total: number;
-  onDiscountChange: (discount: number) => void;
 }
 
-export const RewardsBanner: React.FC<Props> = ({ total, onDiscountChange }) => {
+export const RewardsBanner: React.FC<Props> = ({ total }) => {
   const { state: merchant } = useMerchant();
-  const { isSignedIn, applyReward } = useCustomer();
+  const { isAuthenticated, rewards, user } = useCustomerProfile();
+  const { splitSession, applySessionReward, removeSessionReward, participantId, syncError } = useCustomer();
 
-  const { bestReward, nextReward } = useMemo(() => {
-    const active = merchant.rewards.filter(r => r.status === 'active');
-    
-    const eligible = active
-      .filter(r => total >= (r.minSpend ?? 0))
-      .map(r => ({
-        ...r,
-        actualDiscount: r.rewardUnit === 'cash' ? (r.rewardValue ?? 0) : Math.round(total * ((r.rewardValue ?? 0) / 100))
-      }))
-      .sort((a, b) => b.actualDiscount - a.actualDiscount);
+  // 1. Redemption Logic: Do they have an existing balance with this merchant?
+  const existingReward = useMemo(() => {
+    return rewards.find(r => r.vendorName === merchant.name);
+  }, [rewards, merchant.name]);
 
-    const best = eligible[0] || null;
+  const rewardValue = useMemo(() => {
+    if (!existingReward || existingReward.balance <= 0) return 0;
+    return Math.min(existingReward.balance, total);
+  }, [existingReward, total]);
 
-    const locked = active
-      .filter(r => total < (r.minSpend ?? 0))
-      .sort((a, b) => (a.minSpend ?? 0) - (b.minSpend ?? 0));
+  // Status from shared session
+  const currentDiscount = splitSession?.discount || 0;
+  const appliedBy = splitSession?.appliedBy || '';
+  const isAppliedByMe = appliedBy === (user?.name || `Guest ${participantId.slice(0, 3)}`);
 
-    return { bestReward: best, nextReward: locked[0] || null };
-  }, [merchant.rewards, total]);
-
-  useEffect(() => {
-    if (bestReward) {
-      applyReward(bestReward.id);
-      onDiscountChange(bestReward.actualDiscount);
-    } else {
-      applyReward(null);
-      onDiscountChange(0);
+  const handleApply = () => {
+    if (rewardValue > 0) {
+      applySessionReward(rewardValue, user?.name || `Guest ${participantId.slice(0, 3)}`);
     }
-  }, [bestReward, applyReward, onDiscountChange]);
+  };
 
-  if (!isSignedIn || merchant.rewards.length === 0) return null;
+  if (!isAuthenticated) return null;
 
   return (
     <div className={styles.rewardsWrapper}>
-      {bestReward && (
-        <div className={`${styles.rewardBanner} ${styles.rewardBannerActive}`}>
-          <Sparkles size={20} color="var(--brand-accent)" />
-          <div className={styles.rewardBannerContent}>
-            <div className={styles.rewardBannerText}>
-              <strong>{bestReward.title} Applied!</strong>
-            </div>
-            <div className={styles.rewardBannerSubtext}>
-              You're saving ₦{(bestReward.actualDiscount ?? 0).toLocaleString()} on this visit
-            </div>
-          </div>
-        </div>
+      {/* Sync Error Alert */}
+      {syncError && (
+        <motion.div 
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          className={styles.syncError}
+        >
+          {syncError}
+        </motion.div>
       )}
 
-      {nextReward && (
+      {/* REDEMPTION Section */}
+      {currentDiscount > 0 ? (
+        <div className={`${styles.rewardBanner} ${styles.rewardBannerActive}`} style={{ justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <Sparkles size={20} color="var(--brand-accent)" />
+            <div className={styles.rewardBannerContent}>
+              <div className={styles.rewardBannerText}>
+                <strong>₦{currentDiscount.toLocaleString()} Reward Applied!</strong>
+              </div>
+              <div className={styles.rewardBannerSubtext}>
+                Applied by {appliedBy}
+              </div>
+            </div>
+          </div>
+          {isAppliedByMe && (
+            <Button variant="outline" size="small" onClick={removeSessionReward} style={{ fontSize: '0.75rem', padding: '4px 8px' }}>
+              Remove
+            </Button>
+          )}
+        </div>
+      ) : rewardValue > 0 ? (
+        <div className={styles.rewardBanner} style={{ justifyContent: 'space-between', border: '1px solid var(--brand-accent)' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <Gift size={20} color="var(--brand-accent)" />
+            <div className={styles.rewardBannerContent}>
+              <div className={styles.rewardBannerText}>
+                <strong>₦{rewardValue.toLocaleString()} Balance Available</strong>
+              </div>
+              <div className={styles.rewardBannerSubtext}>
+                Apply to this check to save for everyone
+              </div>
+            </div>
+          </div>
+          <Button variant="accent" size="small" onClick={handleApply}>
+            Apply Now
+          </Button>
+        </div>
+      ) : null}
+
+      {/* EARNING Section (Only show if no discount is applied yet to keep it clean) */}
+      {!currentDiscount && (
         <div className={`${styles.rewardBanner} ${styles.rewardBannerNext}`}>
-          <TrendingUp size={20} color="var(--text-muted)" />
+          <Gift size={20} color="var(--brand-accent)" />
           <div className={styles.rewardBannerContent}>
             <div className={styles.rewardBannerText}>
-              Spend ₦{((nextReward.minSpend ?? 0) - total).toLocaleString()} more to unlock 
-              <strong> {nextReward.title}</strong>
+              <strong>Earn Rewards</strong>
             </div>
             <div className={styles.rewardBannerSubtext}>
-              {nextReward.rewardUnit === 'cash' ? `₦${nextReward.rewardValue ?? 0}` : `${nextReward.rewardValue ?? 0}%`} cash back value
+              Keep shopping to unlock your next cash back tier!
             </div>
           </div>
-        </div>
-      )}
-
-      {!bestReward && !nextReward && (
-        <div className={styles.rewardBanner}>
-          <Gift size={20} color="var(--text-muted)" />
-          <span className={styles.rewardBannerText}>
-            No active rewards available right now.
-          </span>
         </div>
       )}
     </div>
