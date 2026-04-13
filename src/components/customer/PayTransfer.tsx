@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
-import { useCustomer } from '../../context/CustomerContext';
 import { Button } from '../ui/Button';
 import { 
   Copy, 
@@ -27,11 +26,11 @@ interface Props {
 
 export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBack, onDone }) => {
   const { state: merchant, requestVerification } = useMerchant();
-  const { markPaid } = useCustomer();
   const receiptRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 min
+
 
   const bank = merchant.bankAccount;
 

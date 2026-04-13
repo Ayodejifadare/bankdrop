@@ -13,7 +13,7 @@ interface Props {
 
 type AuthStep = 'email' | 'signup_reveal' | 'otp';
 
-export const ProfileAuth: React.FC<Props> = ({ onExit }) => {
+export const ProfileAuth: React.FC<Props> = () => {
   const { checkEmail, login, signup, isLoadingAuth } = useCustomerProfile();
   
   const [step, setStep] = useState<AuthStep>('email');

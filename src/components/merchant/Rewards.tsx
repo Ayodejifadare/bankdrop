@@ -57,8 +57,10 @@ export const RewardsManager: React.FC = () => {
   const handleSave = () => {
     if (!title || rewardValue <= 0) return;
 
+    // eslint-disable-next-line react-hooks/purity
+    const newId = Date.now().toString();
     const rewardData: Reward = {
-      id: editingReward?.id || Date.now().toString(),
+      id: editingReward?.id || newId,
       title,
       minSpend,
       rewardValue,
@@ -286,7 +288,7 @@ export const RewardsManager: React.FC = () => {
                 <Select
                   label="Status"
                   value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
+                  onChange={(e) => setStatus(e.target.value as Reward['status'])}
                   options={[
                     { value: 'active', label: 'Active' },
                     { value: 'paused', label: 'Paused' },

@@ -46,7 +46,7 @@ export const OTPInput: React.FC<OTPInputProps> = ({
       {Array.from({ length }, (_, idx) => (
         <input
           key={idx}
-          ref={(el) => (refs.current[idx] = el)}
+          ref={(el) => { refs.current[idx] = el; }}
           type="text"
           inputMode="numeric"
           className={styles.otpField}

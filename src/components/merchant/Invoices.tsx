@@ -1,19 +1,15 @@
 import React, { useState } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
-import type { Invoice } from '../../context/MerchantContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { StatusPill } from '../ui/StatusPill';
 import styles from './MerchantUI.module.css';
 import { 
   FileText, 
-  Search, 
   Plus, 
   Download, 
   Share2,
-  MoreVertical,
-  Clock,
-  ArrowRight
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { InvoiceBuilder } from './InvoiceBuilder';

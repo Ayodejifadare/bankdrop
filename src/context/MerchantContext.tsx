@@ -250,7 +250,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const updateCheckStatus = (id: string, status: 'open' | 'active' | 'paid') => {
     setState(prev => {
-      let newActivities = [...prev.activities];
+      const newActivities = [...prev.activities];
       if (status === 'paid') {
         const check = prev.checks.find(c => c.id === id);
         if (check && check.total > 0) {
@@ -283,7 +283,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ...prev,
         checks: prev.checks.map(c => {
           if (c.id === checkId) {
-            let newOrders = [...c.orders];
+            const newOrders = [...c.orders];
             let totalDelta = 0;
 
             items.forEach(item => {
@@ -324,7 +324,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             const existingOrderIndex = c.orders.findIndex(o => o.menuItemId === menuItemId);
             if (existingOrderIndex === -1 && quantityDelta <= 0) return c;
 
-            let newOrders = [...c.orders];
+            const newOrders = [...c.orders];
             let finalTotalDelta = 0;
 
             if (existingOrderIndex >= 0) {
@@ -359,7 +359,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const clearCheck = (id: string) => {
     setState(prev => {
       const check = prev.checks.find(c => c.id === id);
-      let newOrderHistory = [...prev.orderHistory];
+      const newOrderHistory = [...prev.orderHistory];
 
       if (check && check.orders.length > 0) {
         newOrderHistory.unshift({
@@ -408,7 +408,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const updateInvoiceStatus = (id: string, status: Invoice['status']) => {
     setState(prev => {
-      let newActivities = [...prev.activities];
+      const newActivities = [...prev.activities];
       if (status === 'paid') {
         const invoice = prev.invoices.find(c => c.id === id);
         if (invoice && invoice.total > 0) {
@@ -455,7 +455,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       newVerifications[index] = { ...verification, status: confirmed ? 'confirmed' : 'declined' };
 
       const newState = { ...prev, pendingVerifications: newVerifications };
-      let newActivities = [...prev.activities];
+      const newActivities = [...prev.activities];
 
       // Update actual status if confirmed
       if (confirmed) {
@@ -523,6 +523,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useMerchant = () => {
   const context = useContext(MerchantContext);
   if (!context) throw new Error('useMerchant must be used within MerchantProvider');

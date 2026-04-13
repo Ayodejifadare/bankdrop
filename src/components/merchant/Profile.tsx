@@ -84,6 +84,7 @@ export const ProfileView: React.FC<ProfileProps> = ({ onBack }) => {
       <div style={{ marginTop: 'var(--spacing-xxl)', width: '100%', opacity: 0.4, fontSize: '0.75rem' }}>
         <Building2 size={32} style={{ margin: '0 auto 8px' }} />
         <p>Verified Business Account</p>
+        {/* eslint-disable-next-line react-hooks/purity */}
         <p>Merchant ID: BD-{Math.floor(Math.random() * 90000) + 10000}</p>
       </div>
     </div>

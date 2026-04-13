@@ -87,7 +87,7 @@ export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> = 
   
   const [rewards] = useState<VendorReward[]>(INITIAL_STATE.rewards);
   
-  const [activities, setActivities] = useState<Activity[]>(() => {
+  const [activities] = useState<Activity[]>(() => {
     const saved = localStorage.getItem('customer_activities');
     return saved ? JSON.parse(saved) : INITIAL_STATE.activities;
   });
@@ -116,7 +116,7 @@ export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> = 
     return { exists: email === INITIAL_STATE.user.email };
   };
 
-  const login = async (email: string, _otp: string) => {
+  const login = async (_email: string, _otp: string) => {
     setIsLoadingAuth(true);
     await new Promise(resolve => setTimeout(resolve, 1000));
     setUser(INITIAL_STATE.user);
@@ -172,6 +172,7 @@ export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> = 
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useCustomerProfile = () => {
   const context = useContext(CustomerProfileContext);
   if (!context) throw new Error('useCustomerProfile must be used within CustomerProfileProvider');

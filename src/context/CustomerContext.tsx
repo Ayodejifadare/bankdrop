@@ -43,6 +43,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (checkId) {
       const saved = localStorage.getItem(`check_split_${checkId}`);
       if (saved) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSplitSession(JSON.parse(saved));
       } else {
         setSplitSession(null);
@@ -135,6 +136,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useCustomer = () => {
   const ctx = useContext(CustomerContext);
   if (!ctx) throw new Error('useCustomer must be used within CustomerProvider');

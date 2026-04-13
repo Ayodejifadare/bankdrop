@@ -21,7 +21,6 @@ import { ActionHub } from './ActionHub';
 import { ProfileView } from './Profile';
 import { ActivityLog } from './ActivityLog';
 import { PaymentAlert } from './PaymentAlert';
-import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { motion } from 'framer-motion';
 import styles from './MerchantUI.module.css';

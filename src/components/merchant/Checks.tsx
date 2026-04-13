@@ -47,7 +47,7 @@ const QuantityStepper: React.FC<QuantityStepperProps> = ({ value, onIncrease, on
 );
 
 export const CheckManager: React.FC = () => {
-  const { state, addOrderToCheck, addOrdersToCheck, updateOrderQuantity, updateCheckStatus, clearCheck } = useMerchant();
+  const { state, addOrdersToCheck, updateOrderQuantity, updateCheckStatus, clearCheck } = useMerchant();
   const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);

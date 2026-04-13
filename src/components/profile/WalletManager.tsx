@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useCustomerProfile } from '../../context/CustomerProfileContext';
-import type { LinkedAccount } from '../../types/profile';
+// import type { LinkedAccount } from '../../types/profile';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import styles from './ProfileUI.module.css';
@@ -128,7 +128,7 @@ export const WalletManager: React.FC = () => {
   );
 };
 
-const LinkForm: React.FC<{ onComplete: (data: any) => void }> = ({ onComplete }) => {
+const LinkForm: React.FC<{ onComplete: (data: { bankName: string; accountNumber: string; accountName: string }) => void }> = ({ onComplete }) => {
   const [formData, setFormData] = useState({
     bankName: NIGERIAN_BANKS[0],
     accountNumber: '',

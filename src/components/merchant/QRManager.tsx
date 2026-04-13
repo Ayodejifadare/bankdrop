@@ -20,7 +20,6 @@ interface QRDisplayProps {
 }
 
 const AestheticQR: React.FC<QRDisplayProps> = ({ id, label, type }) => {
-  const { state } = useMerchant();
   const deepLink = type === 'merchant' 
     ? `${window.location.origin}/#/pay/merchant`
     : `${window.location.origin}/#/check/${id}`;

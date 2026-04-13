@@ -55,6 +55,7 @@ export const ActionHub: React.FC<ActionHubProps> = ({ isOpen, onClose, onAction 
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: index * 0.05 }}
                 onClick={() => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onAction(action.tab, (action as any).action);
                   onClose();
                 }}

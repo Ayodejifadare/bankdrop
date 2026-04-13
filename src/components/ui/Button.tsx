@@ -31,9 +31,8 @@ export const Button: React.FC<ButtonProps> = ({
     onDrag: _od, 
     onDragStart: _ods, 
     onDragEnd: _ode, 
-    onAnimationStart: _as,
     ...safeProps 
-  } = props as any;
+  } = (props as /* eslint-disable-next-line @typescript-eslint/no-explicit-any */ any);
 
   return (
     <motion.button
