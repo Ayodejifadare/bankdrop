@@ -5,11 +5,12 @@ import { Input } from '../ui/Input';
 import { OTPInput } from '../ui/OTPInput';
 import { Button } from '../ui/Button';
 import styles from './ProfileUI.module.css';
-import { ChevronRight, ShieldCheck, Mail, ArrowLeft, Loader2 } from 'lucide-react';
+import { ChevronRight, ShieldCheck, Mail, Loader2, ArrowLeft } from 'lucide-react';
 
 interface Props {
   onExit: () => void;
 }
+
 
 type AuthStep = 'email' | 'signup_reveal' | 'otp';
 
@@ -18,6 +19,7 @@ export const ProfileAuth: React.FC<Props> = () => {
   
   const [step, setStep] = useState<AuthStep>('email');
   const [email, setEmail] = useState('');
+  const [prevEmail, setPrevEmail] = useState('');
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -28,9 +30,9 @@ export const ProfileAuth: React.FC<Props> = () => {
   // Debounced Email Autocheck
   useEffect(() => {
     if (step !== 'email') return;
+    
     const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (!isEmailValid) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEmailChecked(false);
       return;
     }
@@ -39,48 +41,39 @@ export const ProfileAuth: React.FC<Props> = () => {
       const { exists } = await checkEmail(email);
       setIsNewUser(!exists);
       setEmailChecked(true);
+      setPrevEmail(email);
       
-      // AUTO-ADVANCE: Only if we haven't manually 'gone back'
+      // AUTO-ADVANCE
       if (autoAdvanceEnabled) {
-        if (exists) {
-          setStep('otp');
-        } else {
-          setStep('signup_reveal');
-        }
+        setStep(exists ? 'otp' : 'signup_reveal');
       }
     }, 600);
 
     return () => clearTimeout(timer);
   }, [email, step, checkEmail, autoAdvanceEnabled]);
 
-  // Reset flow if email changes
+  // Handle intent reset (Typo Recovery)
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAutoAdvanceEnabled(true); // Re-enable auto-advance for new intents
-    if (step !== 'email') {
-      setStep('email');
-      setEmailChecked(false);
+    // Only reset if change is significant (> 2 chars)
+    if (Math.abs(email.length - prevEmail.length) > 2) {
+      setAutoAdvanceEnabled(true);
+      if (step !== 'email') {
+        setStep('email');
+        setEmailChecked(false);
+      }
     }
-  }, [email, step]);
+  }, [email]); // Removed step from dependencies to fix the loop trap
 
   const handleMainSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (step === 'email') {
-      // If we haven't finished checking yet, check now
       if (!emailChecked) {
         const { exists } = await checkEmail(email);
         setIsNewUser(!exists);
         setEmailChecked(true);
-        // Wait a small tick so user sees the button change? 
-        // Or just move them immediately since they clicked.
-        if (exists) {
-          setStep('otp');
-        } else {
-          setStep('signup_reveal');
-        }
+        setStep(exists ? 'otp' : 'signup_reveal');
       } else {
-        // Already checked, just move to next step
         setStep(isNewUser ? 'signup_reveal' : 'otp');
       }
     } else if (step === 'signup_reveal') {
@@ -98,14 +91,11 @@ export const ProfileAuth: React.FC<Props> = () => {
 
   const getButtonLabel = () => {
     if (isLoadingAuth) return <Loader2 className="animate-spin" size={20} />;
-    
     if (step === 'signup_reveal') return <>Continue <ChevronRight size={18} style={{ marginLeft: '4px' }} /></>;
-    
     if (step === 'email') {
       if (!emailChecked) return <>Continue <ChevronRight size={18} style={{ marginLeft: '4px' }} /></>;
       return isNewUser ? 'Sign up' : 'Log in';
     }
-    
     return 'Continue';
   };
 
@@ -127,10 +117,12 @@ export const ProfileAuth: React.FC<Props> = () => {
               exit={{ opacity: 0, y: -10 }}
             >
               <h1 className={styles.authTitle}>
-                {isNewUser && emailChecked ? 'Create your Link account' : 'Welcome to Bankdrop'}
+                {isNewUser && emailChecked ? 'Create your Link account' : 'Welcome back'}
               </h1>
               <p className={styles.authSubtitle}>
-                Log in or sign up to get started.
+                {isNewUser && emailChecked 
+                  ? 'Join the network to manage all your bank rewards in one place.' 
+                  : 'Log in or sign up to access your profile and rewards.'}
               </p>
 
               <form onSubmit={handleMainSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
@@ -200,12 +192,22 @@ export const ProfileAuth: React.FC<Props> = () => {
                   setAutoAdvanceEnabled(false);
                   setStep(isNewUser ? 'signup_reveal' : 'email');
                 }} 
-                style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)', marginBottom: 'var(--spacing-xl)', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '4px', 
+                  color: 'var(--text-secondary)', 
+                  marginBottom: 'var(--spacing-xl)', 
+                  border: 'none', 
+                  background: 'none', 
+                  cursor: 'pointer', 
+                  padding: 0 
+                }}
               >
                 <ArrowLeft size={16} /> Back
               </button>
 
-              <h1 className={styles.authTitle}>Verify your identity</h1>
+              <h1 className={styles.authTitle}>Verify identity</h1>
               <p className={styles.authSubtitle}>
                 Enter the 6-digit code sent to <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{email}</span>
               </p>

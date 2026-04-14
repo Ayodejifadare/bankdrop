@@ -27,7 +27,10 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return 'Pending';
     const d = new Date(dateString);
+    if (isNaN(d.getTime())) return 'N/A';
+    
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: 'numeric',
@@ -180,7 +183,7 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                         
                         {details ? (
                           <>
-                            {'orders' in details ? (
+                            {'orders' in details && details.orders ? (
                               // Check Details
                               details.orders.map((order, i) => {
                                 const item = menu.find(m => m.id === order.menuItemId);
@@ -194,7 +197,7 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                                   </div>
                                 );
                               })
-                            ) : (
+                            ) : 'items' in details && details.items ? (
                               // Invoice Details
                               details.items.map((item, i) => (
                                 <div key={i} className={styles.detailRow}>
@@ -205,6 +208,10 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                                   <div className={styles.detailPrice}>₦{(item.price * item.quantity).toLocaleString()}</div>
                                 </div>
                               ))
+                            ) : (
+                              <div style={{ padding: '10px', textAlign: 'center', opacity: 0.5 }}>
+                                <p>Detailed items not found.</p>
+                              </div>
                             )}
 
                             <div className={styles.detailTotal}>

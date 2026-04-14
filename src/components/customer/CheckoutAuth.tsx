@@ -4,7 +4,7 @@ import { useCustomerProfile } from '../../context/CustomerProfileContext';
 import { Input } from '../ui/Input';
 import { OTPInput } from '../ui/OTPInput';
 import { Button } from '../ui/Button';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, ChevronRight } from 'lucide-react';
 
 export const CheckoutAuth: React.FC = () => {
   const { checkEmail, login, signup, isLoadingAuth } = useCustomerProfile();
