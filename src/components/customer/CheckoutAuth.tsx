@@ -32,9 +32,7 @@ export const CheckoutAuth: React.FC = () => {
   useEffect(() => {
     // If email is cleared, re-enable auto-pop for the next intent
     if (!email) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAutoPopEnabled(true);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPrevEmail('');
       return;
     }

@@ -40,11 +40,8 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
     if (invoiceId) {
       const invoice = merchant.invoices.find(inv => inv.id === invoiceId);
       if (invoice) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPayAmount(invoice.total);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setScreen('pay');
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsInitialized(true);
         return;
       }
@@ -57,11 +54,8 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
 
     // 1. Check if check is already PAID
     if (check.status === 'paid') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setScreen('pay');
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPayAmount(check.total);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsInitialized(true);
       return;
     }
@@ -69,9 +63,7 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
     // 2. If check is empty/open, always clear any ghost session and show cart
     if (check.status === 'open') {
       clearSession(checkId);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setScreen('cart');
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsInitialized(true);
       return;
     }
