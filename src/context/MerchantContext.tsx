@@ -10,9 +10,11 @@ export interface MenuItem {
 }
 
 export interface BankAccount {
+  id: string;
   accountNumber: string;
   accountName: string;
   bankName: string;
+  isPrimary: boolean;
 }
 
 export interface OrderItem {
@@ -93,7 +95,7 @@ export interface MerchantState {
   name: string;
   businessProfile?: string;
   businessCategory?: string;
-  bankAccount: BankAccount | null;
+  bankAccounts: BankAccount[];
   menu: MenuItem[];
   checks: Check[];
   rewards: Reward[];
@@ -112,7 +114,9 @@ interface MerchantContextType {
   login: (email: string, otp: string) => Promise<void>;
   signup: (userData: { name: string; email: string; mobile: string }, otp: string) => Promise<void>;
   logout: () => void;
-  updateBank: (bank: BankAccount) => void;
+  addBankAccount: (bank: Omit<BankAccount, 'id' | 'isPrimary'>) => void;
+  removeBankAccount: (id: string) => void;
+  setPrimaryBankAccount: (id: string) => void;
   updateBusinessInfo: (info: { name: string; profile: string; category: string }) => void;
   addMenuItem: (item: MenuItem) => void;
   updateCheckStatus: (id: string, status: 'open' | 'active' | 'paid') => void;
@@ -181,6 +185,19 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const saved = localStorage.getItem('merchant_state');
     if (saved) {
       const parsed = JSON.parse(saved);
+      
+      // Migration: bankAccount -> bankAccounts
+      if (parsed.bankAccount && !parsed.bankAccounts) {
+        parsed.bankAccounts = [{
+          ...parsed.bankAccount,
+          id: 'default',
+          isPrimary: true
+        }];
+        delete parsed.bankAccount;
+      } else if (!parsed.bankAccounts) {
+        parsed.bankAccounts = [];
+      }
+
       return { 
         ...DEFAULT_STATE, 
         ...parsed, 
@@ -188,7 +205,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         orderHistory: parsed.orderHistory || DEFAULT_STATE.orderHistory
       };
     }
-    return DEFAULT_STATE;
+    return { ...DEFAULT_STATE, bankAccounts: [] };
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -245,8 +262,37 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.removeItem('merchant_user');
   };
 
-  const updateBank = (bankAccount: BankAccount) => {
-    setState(prev => ({ ...prev, bankAccount }));
+  const addBankAccount = (bank: Omit<BankAccount, 'id' | 'isPrimary'>) => {
+    const newAccount: BankAccount = {
+      ...bank,
+      id: `acc_${Date.now()}`,
+      isPrimary: state.bankAccounts.length === 0
+    };
+    setState(prev => ({ 
+      ...prev, 
+      bankAccounts: [...prev.bankAccounts, newAccount] 
+    }));
+  };
+
+  const removeBankAccount = (id: string) => {
+    setState(prev => {
+      const newAccounts = prev.bankAccounts.filter(acc => acc.id !== id);
+      // If we removed the primary account and have others left, promote the first one
+      if (prev.bankAccounts.find(acc => acc.id === id)?.isPrimary && newAccounts.length > 0) {
+        newAccounts[0].isPrimary = true;
+      }
+      return { ...prev, bankAccounts: newAccounts };
+    });
+  };
+
+  const setPrimaryBankAccount = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      bankAccounts: prev.bankAccounts.map(acc => ({
+        ...acc,
+        isPrimary: acc.id === id
+      }))
+    }));
   };
 
   const updateBusinessInfo = (info: { name: string; profile: string; category: string }) => {
@@ -517,7 +563,9 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       login,
       signup,
       logout,
-      updateBank, 
+      addBankAccount, 
+      removeBankAccount,
+      setPrimaryBankAccount,
       updateBusinessInfo,
       addMenuItem, 
       updateCheckStatus, 

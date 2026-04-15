@@ -57,10 +57,12 @@ export const MerchantOnboarding: React.FC = () => {
 
   const handleBankSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateBank(bankData);
+    addBankAccount(bankData);
   };
 
-  if (state.bankAccount && state.businessCategory) {
+  const primaryAccount = state.bankAccounts.find(acc => acc.isPrimary) || state.bankAccounts[0];
+
+  if (state.bankAccounts.length > 0 && state.businessCategory) {
     return (
       <div className={styles.onboardingForm}>
         <div style={{ textAlign: 'center', marginBottom: 'var(--spacing-xl)' }}>
@@ -86,19 +88,19 @@ export const MerchantOnboarding: React.FC = () => {
             </div>
           </Card>
 
-          <Card title="Business Settlement" description="Where your funds arrive">
+          <Card title="Primary Settlement" description="Where your funds arrive by default">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Bank</span>
-                <span style={{ fontWeight: 600 }}>{state.bankAccount.bankName}</span>
+                <span style={{ fontWeight: 600 }}>{primaryAccount.bankName}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Account Number</span>
-                <span style={{ fontWeight: 600 }}>{state.bankAccount.accountNumber}</span>
+                <span style={{ fontWeight: 600 }}>{primaryAccount.accountNumber}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Account Name</span>
-                <span style={{ fontWeight: 600 }}>{state.bankAccount.accountName}</span>
+                <span style={{ fontWeight: 600 }}>{primaryAccount.accountName}</span>
               </div>
             </div>
           </Card>

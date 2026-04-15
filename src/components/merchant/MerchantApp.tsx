@@ -126,7 +126,7 @@ export const MerchantApp: React.FC = () => {
   }
 
   // If business info or bank info isn't linked, force onboarding
-  if (!state.bankAccount || !state.businessCategory) {
+  if (state.bankAccounts.length === 0 || !state.businessCategory) {
     return (
       <div className={styles.merchantLayout}>
         <div className={styles.header}>
