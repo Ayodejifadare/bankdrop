@@ -47,6 +47,13 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
 
   const [selectedIndices, setSelectedIndices] = useState<number[]>(me?.selectedItemIndices || []);
 
+  // Keep local state in sync with context (for multiplayer/external updates)
+  React.useEffect(() => {
+    if (me?.selectedItemIndices && JSON.stringify(me.selectedItemIndices) !== JSON.stringify(selectedIndices)) {
+      setSelectedIndices(me.selectedItemIndices);
+    }
+  }, [me?.selectedItemIndices, selectedIndices]);
+
   // Which items are claimed by OTHER participants
   const claimedByOthers = useMemo(() => {
     const map = new Map<number, string>();
@@ -60,15 +67,18 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
   }, [splitSession, participantId]);
 
   const toggleItem = (index: number) => {
-    setSelectedIndices(prev => {
-      const next = prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index];
-      // Persist to session
-      if (me && splitSession) {
-        const itemShare = next.reduce((acc, i) => acc + (orderItems[i]?.total || 0), 0);
-        updateParticipant(splitSession.id, { ...me, selectedItemIndices: next, share: itemShare });
-      }
-      return next;
-    });
+    const next = selectedIndices.includes(index) 
+      ? selectedIndices.filter(i => i !== index) 
+      : [...selectedIndices, index];
+    
+    // 1. Update local state immediately for snappy UI
+    setSelectedIndices(next);
+
+    // 2. Persist to session (side effect outside of updater)
+    if (me && splitSession) {
+      const share = next.reduce((acc, i) => acc + (orderItems[i]?.total || 0), 0);
+      updateParticipant(splitSession.id, { ...me, selectedItemIndices: next, share });
+    }
   };
 
   const itemShare = selectedIndices.reduce((acc, i) => acc + (orderItems[i]?.total || 0), 0);
