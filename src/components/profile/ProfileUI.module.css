@@ -39,6 +39,8 @@
   justify-content: center;
   border: 1px solid var(--border-primary);
   overflow: hidden;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
 }
 
 .section {

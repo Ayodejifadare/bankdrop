@@ -17,6 +17,7 @@ interface Props {
 export const CustomerProfileApp: React.FC<Props> = ({ onExit }) => {
   const { user, isAuthenticated, logout } = useCustomerProfile();
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
+  const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
 
   if (!isAuthenticated || !user) {
     return <ProfileAuth onExit={onExit} />;
@@ -105,16 +106,21 @@ export const CustomerProfileApp: React.FC<Props> = ({ onExit }) => {
         <h1 className={styles.title}>
           {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
         </h1>
-        <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+        <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center' }}>
           <button style={{ color: 'var(--text-secondary)' }}><Bell size={20} /></button>
-          <div className={styles.avatar}>
+          <motion.div 
+            className={styles.avatar}
+            onClick={() => setIsHeaderExpanded(!isHeaderExpanded)}
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ borderColor: 'var(--brand-accent)' }}
+          >
             {user.avatar ? <img src={user.avatar} alt="User" /> : <User size={20} color="var(--text-muted)" />}
-          </div>
+          </motion.div>
         </div>
       </header>
 
-      <AnimatePresence mode="wait">
-        {activeTab === 'profile' && (
+      <AnimatePresence>
+        {isHeaderExpanded && (
           <motion.div 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
