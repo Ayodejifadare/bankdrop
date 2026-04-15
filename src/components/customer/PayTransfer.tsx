@@ -32,7 +32,7 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
   const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 min
 
 
-  const bank = merchant.bankAccount;
+  const bank = merchant.bankAccounts.find(acc => acc.isPrimary) || merchant.bankAccounts[0];
 
   const isPaid = invoiceId 
     ? merchant.invoices.find(i => i.id === invoiceId)?.status === 'paid'

@@ -5,7 +5,6 @@ import {
   ExternalLink, 
   HelpCircle, 
   Settings, 
-  CreditCard,
   LogOut,
   ChevronRight,
   Shield,

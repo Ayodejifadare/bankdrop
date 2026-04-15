@@ -139,7 +139,7 @@ const DEFAULT_STATE: MerchantState = {
   name: "Bankdrop Grill",
   businessProfile: "Premium local grill serving the best Jollof and Suya in the city.",
   businessCategory: "Food & Beverages",
-  bankAccount: null,
+  bankAccounts: [],
   menu: [
     { id: '1', name: 'Jollof Rice & Chicken', price: 4500, category: 'Main', type: 'item' },
     { id: '2', name: 'Suya Platter', price: 3200, category: 'Appetizer', type: 'item' },
@@ -205,7 +205,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         orderHistory: parsed.orderHistory || DEFAULT_STATE.orderHistory
       };
     }
-    return { ...DEFAULT_STATE, bankAccounts: [] };
+    return { ...DEFAULT_STATE };
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {

@@ -3,7 +3,7 @@ import { useMerchant } from '../../context/MerchantContext';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input, Select } from '../ui/Input';
-import { ShieldCheck, Landmark, ArrowRight, Wallet, Store, Briefcase } from 'lucide-react';
+import { ShieldCheck, ArrowRight, Wallet, Store, Briefcase } from 'lucide-react';
 import styles from './MerchantUI.module.css';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -32,7 +32,7 @@ const BUSINESS_CATEGORIES = [
 ];
 
 export const MerchantOnboarding: React.FC = () => {
-  const { state, updateBank, updateBusinessInfo } = useMerchant();
+  const { state, addBankAccount, updateBusinessInfo } = useMerchant();
   const [step, setStep] = useState<'business' | 'bank'>(
     state.businessCategory ? 'bank' : 'business'
   );
