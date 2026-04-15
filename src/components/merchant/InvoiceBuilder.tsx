@@ -5,41 +5,47 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import styles from './MerchantUI.module.css';
 import { 
-  X, 
+  X,
+  Check as CheckIcon,
   Plus, 
+  Minus,
   Trash2, 
   Search, 
   Settings2,
   Share2,
   Download,
-  Check as CheckIcon,
-  ChevronRight
+  RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { InvoicePDFContent } from './InvoicePDFContent';
 
 interface InvoiceBuilderProps {
   onClose: () => void;
+  initialData?: Invoice | null;
 }
 
-export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
-  const { state, createInvoice } = useMerchant();
-  const [step, setStep] = useState<'build' | 'plan' | 'share'>('build');
-  const [customerName, setCustomerName] = useState('');
-  const [items, setItems] = useState<InvoiceItem[]>([]);
-  const [totalOverride, setTotalOverride] = useState<number | null>(null);
-  const [generatedInvoiceId, setGeneratedInvoiceId] = useState<string | null>(null);
+export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initialData }) => {
+  const { state, createInvoice, updateInvoice } = useMerchant();
+  const [step, setStep] = useState<'build' | 'plan' | 'share'>(initialData ? 'build' : 'build');
+  const [customerName, setCustomerName] = useState(initialData?.customerName || '');
+  const [items, setItems] = useState<InvoiceItem[]>(initialData?.items || []);
+  const [totalOverride, setTotalOverride] = useState<number | null>(initialData?.total || null);
+  const [generatedInvoiceId, setGeneratedInvoiceId] = useState<string | null>(initialData?.id || null);
   
   // Payment Plan state
-  const [hasPlan, setHasPlan] = useState(false);
-  const [depositPercent, setDepositPercent] = useState(50);
-  const [remainingRule, setRemainingRule] = useState('on delivery');
+  const [hasPlan, setHasPlan] = useState(!!initialData?.paymentPlan);
+  const [depositPercent, setDepositPercent] = useState(initialData?.paymentPlan?.depositPercent || 50);
+  const [remainingRule, setRemainingRule] = useState(initialData?.paymentPlan?.rule || 'on delivery');
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [showMenuPicker, setShowMenuPicker] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+
+  const editingItem = items.find(i => i.id === editingItemId);
 
   const invoiceRef = useRef<HTMLDivElement>(null);
 
@@ -62,7 +68,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
   const addCustomItem = () => {
     const newItem: InvoiceItem = {
       id: Date.now().toString(),
-      name: 'Custom Service',
+      name: '',
       price: 0,
       quantity: 1
     };
@@ -78,24 +84,41 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
   };
 
   const handleSaveInvoice = () => {
-    // eslint-disable-next-line react-hooks/purity
-    const invoiceNum = Math.floor(Math.random() * 9000) + 1000;
-    const newInvoice: Invoice = {
-      id: `INV-${invoiceNum}`,
-      customerName,
-      items,
-      total: finalTotal,
-      status: 'unpaid',
-      createdAt: new Date().toISOString(),
-      paymentPlan: hasPlan ? {
-        type: 'upfront',
-        depositPercent,
-        rule: remainingRule
-      } : undefined
-    };
-    createInvoice(newInvoice);
-    setGeneratedInvoiceId(newInvoice.id);
-    setStep('share');
+    if (initialData) {
+      const updatedInvoice: Invoice = {
+        ...initialData,
+        customerName,
+        items,
+        total: finalTotal,
+        paymentPlan: hasPlan ? {
+          type: 'upfront',
+          depositPercent,
+          rule: remainingRule
+        } : undefined
+      };
+      updateInvoice(updatedInvoice);
+      setGeneratedInvoiceId(updatedInvoice.id);
+      setStep('share');
+    } else {
+      // eslint-disable-next-line react-hooks/purity
+      const invoiceNum = Math.floor(Math.random() * 9000) + 1000;
+      const newInvoice: Invoice = {
+        id: `INV-${invoiceNum}`,
+        customerName,
+        items,
+        total: finalTotal,
+        status: 'unpaid',
+        createdAt: new Date().toISOString(),
+        paymentPlan: hasPlan ? {
+          type: 'upfront',
+          depositPercent,
+          rule: remainingRule
+        } : undefined
+      };
+      createInvoice(newInvoice);
+      setGeneratedInvoiceId(newInvoice.id);
+      setStep('share');
+    }
   };
 
   const downloadPDF = async () => {
@@ -123,50 +146,39 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
 
   return (
     <motion.div 
-      className={styles.actionHubOverlay}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 20 }}
+      style={{ 
+        backgroundColor: 'var(--bg-primary)', 
+        minHeight: '100vh',
+        width: '100%',
+        padding: 'var(--spacing-md)', 
+        position: 'relative',
+        zIndex: 100,
+        display: 'flex',
+        flexDirection: 'column'
+      }}
     >
-      <motion.div 
-        className={styles.onboardingForm}
-        style={{ 
-          backgroundColor: 'var(--bg-primary)', 
-          padding: 'var(--spacing-xl)', 
-          borderTopLeftRadius: 'var(--radius-xl)', 
-          borderTopRightRadius: 'var(--radius-xl)',
-          width: '100%',
-          maxWidth: '100%',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          margin: '0',
-          position: 'relative'
-        }}
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {step !== 'build' && (
               <button 
-                onClick={() => setStep(step === 'share' ? 'plan' : 'build')}
+                onClick={() => setStep('build')}
                 style={{ padding: '8px', background: 'none', border: 'none', color: 'var(--text-secondary)' }}
               >
                 Back
               </button>
             )}
             <h3>
-              {step === 'build' ? 'New Invoice' : 
-               step === 'plan' ? 'Payment Terms' : 'Share Invoice'}
+              {step === 'build' ? 'New Invoice' : 'Share Invoice'}
             </h3>
           </div>
           <button onClick={onClose} style={{ color: 'var(--text-secondary)' }}><X size={24} /></button>
         </div>
 
         {step === 'build' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className={styles.builderScrollArea} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <Input
               label="Customer Name"
               placeholder="Enter client name"
@@ -187,7 +199,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                 {items.length === 0 ? (
                   <div style={{ 
                     padding: '30px', 
@@ -200,55 +212,93 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
                   </div>
                 ) : (
                   items.map((item) => (
-                    <div key={item.id} className={styles.orderRow} style={{ alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1 }}>
+                    <div 
+                      key={item.id} 
+                      className={styles.itemRowCompact} 
+                      style={{ cursor: 'default' }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <input 
                           style={{ 
-                            background: 'none', 
-                            border: 'none', 
                             fontWeight: 600, 
+                            color: 'var(--text-primary)', 
+                            marginBottom: '4px',
                             width: '100%',
-                            color: 'var(--text-primary)',
-                            padding: 0
-                          }} 
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            outline: 'none',
+                            fontSize: '1rem'
+                          }}
+                          placeholder="Custom Service"
                           value={item.name}
                           onChange={(e) => updateItem(item.id, { name: e.target.value })}
                         />
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
-                          <span style={{ fontSize: '0.875rem' }}>₦</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>₦</span>
                           <input 
                             type="number"
                             style={{ 
-                              background: 'var(--bg-tertiary)', 
-                              border: 'none', 
-                              borderRadius: '4px',
-                              padding: '2px 8px',
-                              width: '80px',
-                              fontSize: '0.875rem',
+                              width: '70px',
+                              padding: '2px 6px',
+                              fontSize: '0.8125rem',
+                              fontWeight: 700,
                               color: 'var(--brand-accent)',
-                              fontWeight: 700
-                            }} 
+                              backgroundColor: 'var(--bg-tertiary)',
+                              border: '1px solid var(--border-subtle)',
+                              borderRadius: '4px'
+                            }}
                             value={item.price}
                             onChange={(e) => updateItem(item.id, { price: parseInt(e.target.value) || 0 })}
                           />
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>×</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '4px' }}>Σ ₦</span>
                           <input 
                             type="number"
                             style={{ 
-                              background: 'none', 
-                              border: 'none', 
-                              width: '30px',
-                              fontSize: '0.875rem',
-                              color: 'var(--text-primary)'
-                            }} 
-                            value={item.quantity}
-                            onChange={(e) => updateItem(item.id, { quantity: parseInt(e.target.value) || 1 })}
+                              width: '80px',
+                              padding: '2px 6px',
+                              fontSize: '0.8125rem',
+                              fontWeight: 700,
+                              color: 'var(--brand-accent)',
+                              backgroundColor: 'rgba(212, 175, 55, 0.05)',
+                              border: '1px dashed var(--brand-accent)',
+                              borderRadius: '4px'
+                            }}
+                            value={Math.round(item.price * item.quantity)}
+                            onChange={(e) => {
+                              const newLineTotal = parseInt(e.target.value) || 0;
+                              // Back-calculate unit price
+                              updateItem(item.id, { price: Math.round(newLineTotal / item.quantity) });
+                            }}
                           />
                         </div>
                       </div>
-                      <button onClick={() => removeItem(item.id)} style={{ color: '#ef4444', padding: '4px' }}>
-                        <Trash2 size={18} />
-                      </button>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div className={styles.stepperSmall}>
+                          <button 
+                            className={styles.stepperBtn} 
+                            style={{ width: '28px', height: '28px' }}
+                            onClick={() => updateItem(item.id, { quantity: Math.max(1, item.quantity - 1) })}
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <span style={{ fontSize: '0.875rem', fontWeight: 700, minWidth: '24px', textAlign: 'center' }}>{item.quantity}</span>
+                          <button 
+                            className={styles.stepperBtn} 
+                            style={{ width: '28px', height: '28px' }}
+                            onClick={() => updateItem(item.id, { quantity: item.quantity + 1 })}
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                        <button 
+                          onClick={() => removeItem(item.id)}
+                          style={{ color: 'var(--text-muted)', padding: '4px' }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -256,7 +306,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
             </div>
 
             <div style={{ 
-              marginTop: '20px', 
+              marginTop: '4px', 
               padding: '16px', 
               backgroundColor: 'var(--bg-tertiary)', 
               borderRadius: '12px' 
@@ -266,46 +316,75 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
                 <span>₦{calculatedTotal.toLocaleString()}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 600 }}>Final Total</span>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700 }}>₦</span>
-                  <input 
-                    type="number"
-                    style={{ 
-                      textAlign: 'right', 
-                      padding: '8px 12px 8px 24px', 
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-subtle)',
-                      backgroundColor: 'var(--bg-primary)',
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: 600 }}>Final Total</span>
+                  {totalOverride !== null && (
+                    <span style={{ 
+                      fontSize: '10px', 
+                      backgroundColor: 'var(--brand-accent)', 
+                      color: 'black', 
+                      padding: '2px 6px', 
+                      borderRadius: '4px',
                       fontWeight: 800,
-                      fontSize: '1.125rem',
-                      width: '140px'
-                    }}
-                    value={finalTotal}
-                    onChange={(e) => setTotalOverride(parseInt(e.target.value) || 0)}
-                  />
+                      textTransform: 'uppercase'
+                    }}>
+                      Custom
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {totalOverride !== null && (
+                    <button 
+                      onClick={() => setTotalOverride(null)}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        color: 'var(--brand-accent)',
+                        background: 'rgba(212, 175, 55, 0.1)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '32px',
+                        height: '32px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <RotateCcw size={16} />
+                    </button>
+                  )}
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700 }}>₦</span>
+                    <input 
+                      type="number"
+                      style={{ 
+                        textAlign: 'right', 
+                        padding: '8px 12px 8px 24px', 
+                        borderRadius: '8px',
+                        border: totalOverride !== null ? '2px solid var(--brand-accent)' : '1px solid var(--border-subtle)',
+                        backgroundColor: totalOverride !== null ? 'rgba(212, 175, 55, 0.05)' : 'var(--bg-primary)',
+                        boxShadow: totalOverride !== null ? '0 0 10px rgba(212, 175, 55, 0.1)' : 'none',
+                        fontWeight: 800,
+                        fontSize: '1.125rem',
+                        width: '140px',
+                        outline: 'none',
+                        transition: 'all 0.2s ease'
+                      }}
+                      value={finalTotal}
+                      onChange={(e) => setTotalOverride(parseInt(e.target.value) || 0)}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <Button 
-              fullWidth 
-              variant="accent" 
-              disabled={!customerName || items.length === 0}
-              onClick={() => setStep('plan')}
-            >
-              Configure Terms <ChevronRight size={18} />
-            </Button>
-          </div>
-        )}
-
-        {step === 'plan' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Payment Terms Section (Moved Inline) */}
             <div style={{ 
+              marginTop: '4px',
               padding: '16px', 
               borderRadius: '16px', 
               border: `2px solid ${hasPlan ? 'var(--brand-accent)' : 'var(--border-subtle)'}`,
-              backgroundColor: hasPlan ? 'rgba(212, 175, 55, 0.05)' : 'none'
+              backgroundColor: hasPlan ? 'rgba(212, 175, 55, 0.05)' : 'none',
+              cursor: 'pointer'
             }} onClick={() => setHasPlan(!hasPlan)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -322,7 +401,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
                   </div>
                   <div>
                     <div style={{ fontWeight: 600 }}>Apply Payment Plan</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Split payment into groups</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Split payment into installments</div>
                   </div>
                 </div>
                 <div style={{ 
@@ -343,6 +422,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}
+                  onClick={e => e.stopPropagation()}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
                     <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Deposit / Upfront Amount (%)</label>
@@ -365,7 +445,6 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
                     label="Balance Rule (e.g. Monthly, On Delivery)"
                     placeholder="e.g. 6 month installments"
                     value={remainingRule}
-                    onClick={(e) => e.stopPropagation()}
                     onChange={(e) => setRemainingRule(e.target.value)}
                     style={{ marginTop: '16px' }}
                   />
@@ -381,21 +460,105 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
                       <span>Due Now ({depositPercent}%):</span>
                       <span style={{ fontWeight: 700 }}>₦{((finalTotal * depositPercent) / 100).toLocaleString()}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', opacity: 0.7 }}>
-                      <span>Balance ({remainingRule}):</span>
-                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                      <span {...({} as any)}>₦{(finalTotal - (finalTotal * depositPercent) / 100).toLocaleString()}</span>
-                    </div>
                   </div>
                 </motion.div>
               )}
             </div>
-
-            <Button fullWidth variant="accent" size="large" onClick={handleSaveInvoice}>
-              Generate Invoice & Paylink
-            </Button>
           </div>
         )}
+
+        {step === 'build' && (
+          <motion.button 
+            className={styles.builderFabExtended}
+            style={{ x: '-50%' }}
+            initial={{ x: '-50%', opacity: 0, y: 20 }}
+            animate={{ x: '-50%', opacity: 1, y: 0 }}
+            whileHover={{ scale: 1.02, x: '-50%' }}
+            whileTap={{ scale: 0.98, x: '-50%' }}
+            disabled={!customerName || items.length === 0}
+            onClick={handleSaveInvoice}
+          >
+            <CheckIcon size={24} /> {initialData ? 'Update & Save Changes' : 'Generate Invoice & Paylink'}
+          </motion.button>
+        )}
+
+        {/* Optional Detail Modal for Name/Price Overrides */}
+        <AnimatePresence>
+          {editingItemId && editingItem && (
+            <motion.div 
+              style={{ 
+                position: 'fixed', 
+                top: 0, 
+                left: 0, 
+                right: 0, 
+                bottom: 0, 
+                backgroundColor: 'rgba(0,0,0,0.85)', 
+                zIndex: 1200,
+                padding: 'var(--spacing-lg)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end'
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditingItemId(null)}
+            >
+              <motion.div 
+                style={{ 
+                  width: '100%', 
+                  backgroundColor: 'var(--bg-secondary)', 
+                  padding: 'var(--spacing-xl)',
+                  borderTopLeftRadius: '24px',
+                  borderTopRightRadius: '24px'
+                }}
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+                  <div style={{ flex: 1 }}>
+                    <Input
+                      label="Edit Name"
+                      placeholder="Custom Service"
+                      value={editingItem.name}
+                      onChange={(e) => updateItem(editingItem.id, { name: e.target.value })}
+                    />
+                  </div>
+                  <button onClick={() => setEditingItemId(null)} style={{ padding: '8px', marginLeft: '12px', marginTop: '28px' }}>
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div style={{ marginBottom: '32px' }}>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>Unit Price (₦)</label>
+                  <input 
+                    type="number"
+                    style={{ 
+                      width: '100%',
+                      backgroundColor: 'var(--bg-primary)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: '12px',
+                      padding: '12px',
+                      fontSize: '1.25rem',
+                      fontWeight: 700,
+                      color: 'var(--brand-accent)'
+                    }}
+                    value={editingItem.price}
+                    onChange={(e) => updateItem(editingItem.id, { price: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+
+                <Button fullWidth variant="accent" size="large" onClick={() => setEditingItemId(null)}>
+                  Save Changes
+                </Button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+
 
         {step === 'share' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', textAlign: 'center' }}>
@@ -450,101 +613,25 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose }) => {
             <Button variant="outline" onClick={onClose}>Close</Button>
           </div>
         )}
-      </motion.div>
-
+      
       {/* Hidden PDF Component for html2canvas */}
       <div style={{ position: 'fixed', left: '-2000px', top: 0 }}>
-        <div 
-          ref={invoiceRef} 
-          style={{ 
-            width: '210mm', 
-            minHeight: '297mm', 
-            padding: '20mm', 
-            backgroundColor: '#ffffff', 
-            color: '#1a1a1a',
-            fontFamily: 'system-ui, -apple-system, sans-serif'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px' }}>
-            <div>
-              <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 800 }}>INVOICE</h1>
-              <p style={{ margin: 0, opacity: 0.6 }}>Issued by {state.name}</p>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 700, fontSize: '20px' }}>BANKDROP</div>
-              <p style={{ margin: 0, opacity: 0.6 }}>Inv # {customerName.length * 12345 + items.length}</p>
-            </div>
+        {generatedInvoiceId && (
+          <div ref={invoiceRef}>
+            <InvoicePDFContent 
+              merchantName={state.name}
+              invoice={state.invoices.find(inv => inv.id === generatedInvoiceId) || {
+                id: generatedInvoiceId,
+                customerName,
+                items,
+                total: finalTotal,
+                status: 'unpaid',
+                createdAt: new Date().toISOString(),
+                paymentPlan: hasPlan ? { type: 'upfront', depositPercent, rule: remainingRule } : undefined
+              }}
+            />
           </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px' }}>
-            <div>
-              <p style={{ margin: 0, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.4 }}>Bill To</p>
-              <p style={{ margin: '4px 0', fontSize: '18px', fontWeight: 700 }}>{customerName}</p>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ margin: 0, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.4 }}>Date Issued</p>
-              <p style={{ margin: '4px 0', fontSize: '18px', fontWeight: 700 }}>{new Date().toLocaleDateString()}</p>
-            </div>
-          </div>
-
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '40px' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #f0f0f0' }}>
-                <th style={{ textAlign: 'left', padding: '12px 0', fontSize: '12px', opacity: 0.5 }}>Description</th>
-                <th style={{ textAlign: 'center', padding: '12px 0', fontSize: '12px', opacity: 0.5 }}>Qty</th>
-                <th style={{ textAlign: 'right', padding: '12px 0', fontSize: '12px', opacity: 0.5 }}>Price</th>
-                <th style={{ textAlign: 'right', padding: '12px 0', fontSize: '12px', opacity: 0.5 }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #f9f9f9' }}>
-                  <td style={{ padding: '16px 0', fontWeight: 600 }}>{item.name}</td>
-                  <td style={{ padding: '16px 0', textAlign: 'center' }}>{item.quantity}</td>
-                  <td style={{ padding: '16px 0', textAlign: 'right' }}>₦{item.price.toLocaleString()}</td>
-                  <td style={{ padding: '16px 0', textAlign: 'right', fontWeight: 600 }}>₦{(item.price * item.quantity).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '60px' }}>
-            <div style={{ width: '200px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-                <span style={{ opacity: 0.5 }}>Subtotal</span>
-                <span>₦{calculatedTotal.toLocaleString()}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderTop: '2px solid #1a1a1a', marginTop: '12px' }}>
-                <span style={{ fontWeight: 800, fontSize: '18px' }}>Total</span>
-                <span style={{ fontWeight: 800, fontSize: '18px' }}>₦{finalTotal.toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ 
-            padding: '30px', 
-            backgroundColor: '#f8f9fa', 
-            borderRadius: '20px', 
-            display: 'flex', 
-            gap: '30px', 
-            alignItems: 'center' 
-          }}>
-            <div style={{ padding: '10px', backgroundColor: '#fff', borderRadius: '12px' }}>
-              <QRCodeSVG value="http://localhost:5173/join" size={100} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: '16px', marginBottom: '4px' }}>Join Bankdrop</div>
-              <p style={{ margin: 0, fontSize: '12px', opacity: 0.6, lineHeight: 1.5 }}>
-                Scan this QR code to download Bankdrop and experience the future of payments. 
-                Fast, secure, and rewarding.
-              </p>
-            </div>
-          </div>
-
-          <div style={{ marginTop: '40px', textAlign: 'center', opacity: 0.3, fontSize: '10px' }}>
-            Bankdrop Terminal Invoicing • Member FDIC • Powered by Bankdrop technology
-          </div>
-        </div>
+        )}
       </div>
 
       <AnimatePresence>

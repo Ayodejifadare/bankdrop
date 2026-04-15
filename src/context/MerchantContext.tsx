@@ -6,6 +6,7 @@ export interface MenuItem {
   price: number;
   category: string;
   type: 'item' | 'service' | 'subscription';
+  status: 'active' | 'archived';
   billingCycle?: 'daily' | 'weekly' | 'monthly' | 'yearly';
 }
 
@@ -119,6 +120,10 @@ interface MerchantContextType {
   setPrimaryBankAccount: (id: string) => void;
   updateBusinessInfo: (info: { name: string; profile: string; category: string }) => void;
   addMenuItem: (item: MenuItem) => void;
+  updateMenuItem: (item: MenuItem) => void;
+  archiveMenuItem: (id: string) => void;
+  restoreMenuItem: (id: string) => void;
+  deleteMenuItem: (id: string) => void;
   updateCheckStatus: (id: string, status: 'open' | 'active' | 'paid') => void;
   addOrderToCheck: (checkId: string, item: OrderItem) => void;
   addOrdersToCheck: (checkId: string, items: OrderItem[]) => void;
@@ -128,6 +133,7 @@ interface MerchantContextType {
   updateReward: (reward: Reward) => void;
   deleteReward: (id: string) => void;
   createInvoice: (invoice: Invoice) => void;
+  updateInvoice: (invoice: Invoice) => void;
   updateInvoiceStatus: (id: string, status: Invoice['status']) => void;
   requestVerification: (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => void;
   resolveVerification: (id: string, confirmed: boolean) => void;
@@ -141,11 +147,11 @@ const DEFAULT_STATE: MerchantState = {
   businessCategory: "Food & Beverages",
   bankAccounts: [],
   menu: [
-    { id: '1', name: 'Jollof Rice & Chicken', price: 4500, category: 'Main', type: 'item' },
-    { id: '2', name: 'Suya Platter', price: 3200, category: 'Appetizer', type: 'item' },
-    { id: '3', name: 'Standard Gym Membership', price: 15000, category: 'Main', type: 'subscription', billingCycle: 'monthly' },
-    { id: '4', name: 'Personal Training Session', price: 8000, category: 'Main', type: 'service' },
-    { id: '5', name: 'Chapman Drink', price: 1500, category: 'Beverage', type: 'item' },
+    { id: 'm1', name: 'Margherita Pizza', price: 4500, category: 'Main', type: 'item', status: 'active' },
+    { id: 'm2', name: 'Jollof Rice & Chicken', price: 3800, category: 'Main', type: 'item', status: 'active' },
+    { id: 'm3', name: 'Coca-Cola 35cl', price: 400, category: 'Beverage', type: 'item', status: 'active' },
+    { id: 'm4', name: 'Chapman Cocktail', price: 2500, category: 'Beverage', type: 'item', status: 'active' },
+    { id: 'm5', name: 'Spring Rolls (4pcs)', price: 1800, category: 'Appetizer', type: 'item', status: 'active' }
   ],
   checks: Array.from({ length: 12 }, (_, i) => ({
     id: `${i + 1}`,
@@ -305,7 +311,35 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const addMenuItem = (item: MenuItem) => {
-    setState(prev => ({ ...prev, menu: [...prev.menu, item] }));
+    setState(prev => ({ ...prev, menu: [...prev.menu, { ...item, status: item.status || 'active' }] }));
+  };
+
+  const updateMenuItem = (item: MenuItem) => {
+    setState(prev => ({
+      ...prev,
+      menu: prev.menu.map(m => m.id === item.id ? item : m)
+    }));
+  };
+
+  const archiveMenuItem = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      menu: prev.menu.map(m => m.id === id ? { ...m, status: 'archived' } : m)
+    }));
+  };
+
+  const restoreMenuItem = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      menu: prev.menu.map(m => m.id === id ? { ...m, status: 'active' } : m)
+    }));
+  };
+
+  const deleteMenuItem = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      menu: prev.menu.filter(m => m.id !== id)
+    }));
   };
 
   const updateCheckStatus = (id: string, status: 'open' | 'active' | 'paid') => {
@@ -466,6 +500,13 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }));
   };
 
+  const updateInvoice = (invoice: Invoice) => {
+    setState(prev => ({
+      ...prev,
+      invoices: prev.invoices.map(inv => inv.id === invoice.id ? invoice : inv)
+    }));
+  };
+
   const updateInvoiceStatus = (id: string, status: Invoice['status']) => {
     setState(prev => {
       const newActivities = [...prev.activities];
@@ -492,16 +533,24 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const requestVerification = (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => {
-    const newVerification: PendingVerification = {
-      ...verification,
-      id: `VER-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      status: 'pending'
-    };
-    setState(prev => ({
-      ...prev,
-      pendingVerifications: [...(prev.pendingVerifications || []), newVerification]
-    }));
+    setState(prev => {
+      const verifications = prev.pendingVerifications || [];
+      const alreadyPending = verifications.some(v => v.targetId === verification.targetId && v.type === verification.type && v.status === 'pending');
+      
+      if (alreadyPending) return prev;
+
+      const newVerification: PendingVerification = {
+        ...verification,
+        id: `VER-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        status: 'pending'
+      };
+      
+      return {
+        ...prev,
+        pendingVerifications: [...verifications, newVerification]
+      };
+    });
   };
 
   const resolveVerification = (id: string, confirmed: boolean) => {
@@ -568,6 +617,10 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setPrimaryBankAccount,
       updateBusinessInfo,
       addMenuItem, 
+      updateMenuItem,
+      archiveMenuItem,
+      restoreMenuItem,
+      deleteMenuItem,
       updateCheckStatus, 
       addOrderToCheck, 
       addOrdersToCheck,
@@ -577,6 +630,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       updateReward,
       deleteReward,
       createInvoice,
+      updateInvoice,
       updateInvoiceStatus,
       requestVerification,
       resolveVerification

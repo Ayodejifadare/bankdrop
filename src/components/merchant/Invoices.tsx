@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
+import type { Invoice } from '../../context/MerchantContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { StatusPill } from '../ui/StatusPill';
@@ -9,20 +10,27 @@ import {
   Plus, 
   Download, 
   Share2,
-  Clock
+  Clock,
+  Edit3
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { InvoiceBuilder } from './InvoiceBuilder';
+import { motion } from 'framer-motion';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { InvoicePDFContent } from './InvoicePDFContent';
 
 interface InvoicesManagerProps {
-  initialBuilding?: boolean;
-  onBuildingComplete?: () => void;
+  onStartBuilding?: () => void;
+  onEditInvoice?: (invoice: Invoice) => void;
 }
 
-export const InvoicesManager: React.FC<InvoicesManagerProps> = ({ initialBuilding, onBuildingComplete }) => {
+export const InvoicesManager: React.FC<InvoicesManagerProps> = ({ 
+  onStartBuilding,
+  onEditInvoice
+}) => {
   const { state } = useMerchant();
-  const [isBuilding, setIsBuilding] = useState(initialBuilding || false);
   const [filter, setFilter] = useState<'all' | 'unpaid' | 'paid' | 'overdue'>('all');
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const downloadRef = React.useRef<HTMLDivElement>(null);
 
   const filteredInvoices = state.invoices.filter(inv => {
     if (filter === 'all') return true;
@@ -33,6 +41,59 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({ initialBuildin
     .filter(inv => inv.status !== 'paid')
     .reduce((sum, inv) => sum + inv.total, 0);
 
+  const handleDownload = async (invoice: Invoice) => {
+    setDownloadingId(invoice.id);
+    // Wait for the hidden container to render (300ms for safer mobile rendering)
+    setTimeout(async () => {
+      if (!downloadRef.current) {
+        setDownloadingId(null);
+        return;
+      }
+      
+      try {
+        const canvas = await html2canvas(downloadRef.current, {
+          scale: 2,
+          useCORS: true,
+          logging: false
+        });
+        
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save(`Invoice_${invoice.id}_${invoice.customerName.replace(/\s+/g, '_')}.pdf`);
+      } catch (err) {
+        console.error('Download failed', err);
+      } finally {
+        setDownloadingId(null);
+      }
+    }, 100);
+  };
+
+  const handleShare = async (invoice: Invoice) => {
+    const shareUrl = `${window.location.origin}/#/pay/${invoice.id}`;
+    const shareData = {
+      title: `Invoice from ${state.name}`,
+      text: `Hi ${invoice.customerName}, here is your invoice for ₦${invoice.total.toLocaleString()}. Pay securely here:`,
+      url: shareUrl
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          console.error('Share failed', err);
+        }
+      }
+    } else {
+      await navigator.clipboard.writeText(shareUrl);
+      alert('Paylink copied to clipboard!');
+    }
+  };
+
   return (
     <div className={styles.invoicesManager}>
       <header style={{ marginBottom: 'var(--spacing-lg)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -42,7 +103,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({ initialBuildin
             ₦{totalOutstanding.toLocaleString()}
           </p>
         </div>
-        <Button size="small" variant="accent" onClick={() => setIsBuilding(true)}>
+        <Button size="small" variant="accent" onClick={onStartBuilding}>
           <Plus size={18} /> New Invoice
         </Button>
       </header>
@@ -68,59 +129,56 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({ initialBuildin
         </button>
       </div>
 
-      <div className={styles.invoiceList}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
         {filteredInvoices.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', opacity: 0.5 }}>
-            <FileText size={48} style={{ margin: '0 auto 16px', display: 'block' }} />
-            <p>No {filter !== 'all' ? filter : ''} invoices found.</p>
-          </div>
+          <Card>
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+              <FileText size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
+              <p>No invoices found.</p>
+            </div>
+          </Card>
         ) : (
-          filteredInvoices.map(invoice => (
+          filteredInvoices.map((invoice) => (
             <motion.div 
               key={invoice.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <Card className={styles.invoiceCard}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <div style={{ 
-                      width: '40px', 
-                      height: '40px', 
-                      borderRadius: '8px', 
-                      backgroundColor: 'var(--bg-tertiary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <FileText size={20} />
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{invoice.customerName}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {new Date(invoice.createdAt).toLocaleDateString()} • {invoice.items.length} items
-                      </div>
-                    </div>
+              <Card>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.125rem' }}>{invoice.customerName}</h3>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                      Invoice #{invoice.id} • {new Date(invoice.createdAt).toLocaleDateString()}
+                    </p>
                   </div>
-                  <StatusPill 
-                    status={invoice.status === 'partial' ? 'partial' : 
-                            invoice.status === 'paid' ? 'paid' : 
-                            invoice.status === 'unpaid' ? 'unpaid' : 'draft'}
-                    label={invoice.status}
-                  />
+                  <StatusPill status={invoice.status} />
                 </div>
 
-                <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                  <div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Total Amount</div>
-                    <div style={{ fontWeight: 700, fontSize: '1.125rem' }}>₦{invoice.total.toLocaleString()}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
+                    ₦{invoice.total.toLocaleString()}
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <Button size="small" variant="secondary" style={{ padding: '8px' }}>
-                      <Share2 size={16} />
+                    <Button variant="ghost" size="small" style={{ padding: '8px' }} onClick={() => onEditInvoice?.(invoice)} disabled={!!downloadingId}>
+                      <Edit3 size={18} />
                     </Button>
-                    <Button size="small" variant="secondary" style={{ padding: '8px' }}>
-                      <Download size={16} />
+                    <Button 
+                      variant="secondary" 
+                      size="small" 
+                      onClick={() => handleDownload(invoice)}
+                      loading={downloadingId === invoice.id}
+                      disabled={!!downloadingId && downloadingId !== invoice.id}
+                    >
+                      <Download size={18} />
+                    </Button>
+                    <Button 
+                      variant="secondary" 
+                      size="small"
+                      onClick={() => handleShare(invoice)}
+                      disabled={!!downloadingId}
+                    >
+                      <Share2 size={18} />
                     </Button>
                   </div>
                 </div>
@@ -144,18 +202,18 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({ initialBuildin
             </motion.div>
           ))
         )}
-      </div>
-
-      <AnimatePresence>
-        {isBuilding && (
-          <InvoiceBuilder 
-            onClose={() => {
-              setIsBuilding(false);
-              onBuildingComplete?.();
-            }} 
-          />
+      {/* Hidden PDF Container for Download */}
+      <div style={{ position: 'fixed', left: '-2000px', top: 0 }}>
+        {downloadingId && (
+          <div ref={downloadRef}>
+            <InvoicePDFContent 
+              merchantName={state.name}
+              invoice={state.invoices.find(inv => inv.id === downloadingId)!}
+            />
+          </div>
         )}
-      </AnimatePresence>
+      </div>
     </div>
+  </div>
   );
 };

@@ -10,6 +10,7 @@ import {
   Gift
 } from 'lucide-react';
 import { useMerchant } from '../../context/MerchantContext';
+import type { Invoice } from '../../context/MerchantContext';
 import { MerchantAuth } from './MerchantAuth';
 import { MerchantOnboarding } from './Onboarding';
 import { MenuManager } from './Menu';
@@ -20,6 +21,7 @@ import { RewardsManager } from './Rewards';
 import { ActionHub } from './ActionHub';
 import { ProfileView } from './Profile';
 import { ActivityLog } from './ActivityLog';
+import { InvoiceBuilder } from './InvoiceBuilder';
 import { PaymentAlert } from './PaymentAlert';
 import { Card } from '../ui/Card';
 import { motion } from 'framer-motion';
@@ -120,6 +122,7 @@ export const MerchantApp: React.FC = () => {
   const [viewActivityLog, setViewActivityLog] = useState(false);
   const [segmentView, setSegmentView] = useState<'checks' | 'invoices'>('checks');
   const [isBuildingInvoice, setIsBuildingInvoice] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [isAddingMenuItem, setIsAddingMenuItem] = useState(false);
   const [isAddingReward, setIsAddingReward] = useState(false);
 
@@ -142,6 +145,15 @@ export const MerchantApp: React.FC = () => {
   }
 
   const renderContent = () => {
+    if (isBuildingInvoice) return (
+      <InvoiceBuilder 
+        initialData={editingInvoice}
+        onClose={() => { 
+          setIsBuildingInvoice(false); 
+          setEditingInvoice(null); 
+        }} 
+      />
+    );
     if (viewProfile) return <ProfileView onBack={() => setViewProfile(false)} />;
     if (viewActivityLog) return <ActivityLog onBack={() => setViewActivityLog(false)} />;
     
@@ -149,7 +161,20 @@ export const MerchantApp: React.FC = () => {
       case 0: return <Dashboard onTabChange={(tab) => setActiveTab(tab)} onViewAll={() => setViewActivityLog(true)} />;
       case 1: return <MenuManager initialAdding={isAddingMenuItem} onAddingComplete={() => setIsAddingMenuItem(false)} />;
       case 2: 
-        return segmentView === 'checks' ? <CheckManager /> : <InvoicesManager initialBuilding={isBuildingInvoice} onBuildingComplete={() => setIsBuildingInvoice(false)} />;
+        return segmentView === 'checks' ? (
+          <CheckManager />
+        ) : (
+          <InvoicesManager 
+            onStartBuilding={() => {
+              setEditingInvoice(null);
+              setIsBuildingInvoice(true);
+            }} 
+            onEditInvoice={(inv) => {
+              setEditingInvoice(inv);
+              setIsBuildingInvoice(true);
+            }}
+          />
+        );
       case 3: return <QRManager />;
       case 4: return <RewardsManager initialAdding={isAddingReward} onAddingComplete={() => setIsAddingReward(false)} />;
       default: return <Dashboard onTabChange={(tab) => setActiveTab(tab)} onViewAll={() => setViewActivityLog(true)} />;
@@ -158,7 +183,8 @@ export const MerchantApp: React.FC = () => {
 
   return (
     <div className={styles.merchantLayout}>
-      <div className={styles.header}>
+      {!isBuildingInvoice && (
+        <div className={styles.header}>
         {activeTab === 2 && !viewProfile ? (
           <div className={styles.headerSegment}>
             <button 
@@ -189,12 +215,13 @@ export const MerchantApp: React.FC = () => {
           </motion.button>
         </div>
       </div>
+      )}
 
       <div className={styles.content}>
         {renderContent()}
       </div>
 
-      {!viewProfile && (
+      {!viewProfile && !isBuildingInvoice && (
         <motion.button 
           className={styles.fab}
           whileHover={{ scale: 1.05 }}
@@ -205,7 +232,7 @@ export const MerchantApp: React.FC = () => {
         </motion.button>
       )}
 
-      {!viewProfile && (
+      {!viewProfile && !isBuildingInvoice && (
         <div className={styles.bottomNav}>
           <div 
             className={`${styles.navItem} ${activeTab === 0 && !viewActivityLog && !viewProfile ? styles.active : ''}`}
