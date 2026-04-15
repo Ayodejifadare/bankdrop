@@ -7,9 +7,14 @@ import { Input, Select } from '../ui/Input';
 import { Plus, Trash2, Edit3, BookOpen, Package, Zap, Repeat } from 'lucide-react';
 import styles from './MerchantUI.module.css';
 
-export const MenuManager: React.FC = () => {
+interface MenuManagerProps {
+  initialAdding?: boolean;
+  onAddingComplete?: () => void;
+}
+
+export const MenuManager: React.FC<MenuManagerProps> = ({ initialAdding, onAddingComplete }) => {
   const { state, addMenuItem } = useMerchant();
-  const [isAdding, setIsAdding] = useState(false);
+  const [isAdding, setIsAdding] = useState(initialAdding || false);
   const [newItem, setNewItem] = useState<Partial<MenuItem>>({
     name: '',
     price: 0,
@@ -33,6 +38,7 @@ export const MenuManager: React.FC = () => {
         billingCycle: newItem.type === 'subscription' ? newItem.billingCycle : undefined
       });
       setIsAdding(false);
+      onAddingComplete?.();
       setNewItem({ name: '', price: 0, category: 'Main' });
     }
   };
@@ -126,7 +132,7 @@ export const MenuManager: React.FC = () => {
             </div>
             <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginTop: 'var(--spacing-sm)' }}>
               <Button type="submit" variant="primary" fullWidth>Save Item</Button>
-              <Button type="button" variant="ghost" fullWidth onClick={() => setIsAdding(false)}>Cancel</Button>
+              <Button type="button" variant="ghost" fullWidth onClick={() => { setIsAdding(false); onAddingComplete?.(); }}>Cancel</Button>
             </div>
           </form>
         </Card>

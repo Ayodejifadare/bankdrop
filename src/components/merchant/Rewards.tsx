@@ -18,10 +18,15 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
-export const RewardsManager: React.FC = () => {
+interface RewardsManagerProps {
+  initialAdding?: boolean;
+  onAddingComplete?: () => void;
+}
+
+export const RewardsManager: React.FC<RewardsManagerProps> = ({ initialAdding, onAddingComplete }) => {
   const { state, addReward, updateReward, deleteReward } = useMerchant();
   const [editingReward, setEditingReward] = useState<Reward | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
+  const [isAdding, setIsAdding] = useState(initialAdding || false);
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
 
   // Form state
@@ -98,6 +103,7 @@ export const RewardsManager: React.FC = () => {
   const closeModal = () => {
     setEditingReward(null);
     setIsAdding(false);
+    onAddingComplete?.();
   };
 
   const filteredRewards = state.rewards.filter(r => 
@@ -106,13 +112,13 @@ export const RewardsManager: React.FC = () => {
 
   return (
     <div className={styles.rewardsManager}>
-      <header style={{ marginBottom: 'var(--spacing-lg)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <header style={{ marginBottom: 'var(--spacing-lg)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 className={styles.title}>Loyalty & Rewards</h2>
-          <p style={{ color: 'var(--text-secondary)' }}>Drive repeat visits with offers</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Drive repeat visits with offers</p>
         </div>
         <Button size="small" variant="accent" onClick={startAdd}>
-          <Plus size={16} style={{ marginRight: '4px' }} /> New Offer
+          <Plus size={18} /> New Offer
         </Button>
       </header>
 

@@ -35,7 +35,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({ initialBuildin
 
   return (
     <div className={styles.invoicesManager}>
-      <header style={{ marginBottom: 'var(--spacing-lg)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <header style={{ marginBottom: 'var(--spacing-lg)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 className={styles.title} style={{ fontSize: '1.5rem' }}>Outstanding Invoices</h2>
           <p style={{ color: 'var(--brand-accent)', fontSize: '1.25rem', fontWeight: 700 }}>
@@ -43,7 +43,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({ initialBuildin
           </p>
         </div>
         <Button size="small" variant="accent" onClick={() => setIsBuilding(true)}>
-          <Plus size={16} /> New Invoice
+          <Plus size={18} /> New Invoice
         </Button>
       </header>
 

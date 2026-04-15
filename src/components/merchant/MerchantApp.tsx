@@ -120,6 +120,8 @@ export const MerchantApp: React.FC = () => {
   const [viewActivityLog, setViewActivityLog] = useState(false);
   const [segmentView, setSegmentView] = useState<'checks' | 'invoices'>('checks');
   const [isBuildingInvoice, setIsBuildingInvoice] = useState(false);
+  const [isAddingMenuItem, setIsAddingMenuItem] = useState(false);
+  const [isAddingReward, setIsAddingReward] = useState(false);
 
   if (!isAuthenticated) {
     return <MerchantAuth />;
@@ -145,11 +147,11 @@ export const MerchantApp: React.FC = () => {
     
     switch (activeTab) {
       case 0: return <Dashboard onTabChange={(tab) => setActiveTab(tab)} onViewAll={() => setViewActivityLog(true)} />;
-      case 1: return <MenuManager />;
+      case 1: return <MenuManager initialAdding={isAddingMenuItem} onAddingComplete={() => setIsAddingMenuItem(false)} />;
       case 2: 
         return segmentView === 'checks' ? <CheckManager /> : <InvoicesManager initialBuilding={isBuildingInvoice} onBuildingComplete={() => setIsBuildingInvoice(false)} />;
       case 3: return <QRManager />;
-      case 4: return <RewardsManager />;
+      case 4: return <RewardsManager initialAdding={isAddingReward} onAddingComplete={() => setIsAddingReward(false)} />;
       default: return <Dashboard onTabChange={(tab) => setActiveTab(tab)} onViewAll={() => setViewActivityLog(true)} />;
     }
   };
@@ -258,6 +260,12 @@ export const MerchantApp: React.FC = () => {
           if (action === 'new-invoice') {
             setSegmentView('invoices');
             setIsBuildingInvoice(true);
+          } else if (action === 'add-menu-item') {
+            setIsAddingMenuItem(true);
+          } else if (action === 'create-reward') {
+            setIsAddingReward(true);
+          } else if (action === 'new-check') {
+            setSegmentView('checks');
           }
         }}
       />
