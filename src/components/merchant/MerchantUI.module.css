@@ -651,3 +651,75 @@
   background: rgba(212, 175, 55, 0.15);
   transform: translateY(1px);
 }
+
+/* Onboarding Step Indicator */
+.stepIndicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: var(--spacing-xxl);
+}
+
+.stepDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--bg-tertiary);
+  border: 2px solid var(--border-subtle);
+  transition: all var(--transition-normal);
+}
+
+.stepActive {
+  background-color: var(--brand-accent);
+  border-color: var(--brand-accent);
+  transform: scale(1.2);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+}
+
+.stepComplete {
+  background-color: var(--brand-accent);
+  border-color: var(--brand-accent);
+  opacity: 0.6;
+}
+
+.stepLine {
+  height: 2px;
+  width: 40px;
+  background-color: var(--border-subtle);
+}
+
+.textareaField {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 1rem;
+  resize: none;
+  transition: all var(--transition-fast);
+}
+
+.textareaField:focus {
+  outline: none;
+  border-color: var(--brand-accent);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.1);
+}
+
+.label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+}
+

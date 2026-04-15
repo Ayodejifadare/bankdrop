@@ -91,6 +91,8 @@ export interface PastOrder {
 
 export interface MerchantState {
   name: string;
+  businessProfile?: string;
+  businessCategory?: string;
   bankAccount: BankAccount | null;
   menu: MenuItem[];
   checks: Check[];
@@ -111,6 +113,7 @@ interface MerchantContextType {
   signup: (userData: { name: string; email: string; mobile: string }, otp: string) => Promise<void>;
   logout: () => void;
   updateBank: (bank: BankAccount) => void;
+  updateBusinessInfo: (info: { name: string; profile: string; category: string }) => void;
   addMenuItem: (item: MenuItem) => void;
   updateCheckStatus: (id: string, status: 'open' | 'active' | 'paid') => void;
   addOrderToCheck: (checkId: string, item: OrderItem) => void;
@@ -130,6 +133,8 @@ const MerchantContext = createContext<MerchantContextType | undefined>(undefined
 
 const DEFAULT_STATE: MerchantState = {
   name: "Bankdrop Grill",
+  businessProfile: "Premium local grill serving the best Jollof and Suya in the city.",
+  businessCategory: "Food & Beverages",
   bankAccount: null,
   menu: [
     { id: '1', name: 'Jollof Rice & Chicken', price: 4500, category: 'Main', type: 'item' },
@@ -242,6 +247,15 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const updateBank = (bankAccount: BankAccount) => {
     setState(prev => ({ ...prev, bankAccount }));
+  };
+
+  const updateBusinessInfo = (info: { name: string; profile: string; category: string }) => {
+    setState(prev => ({ 
+      ...prev, 
+      name: info.name, 
+      businessProfile: info.profile, 
+      businessCategory: info.category 
+    }));
   };
 
   const addMenuItem = (item: MenuItem) => {
@@ -504,6 +518,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       signup,
       logout,
       updateBank, 
+      updateBusinessInfo,
       addMenuItem, 
       updateCheckStatus, 
       addOrderToCheck, 

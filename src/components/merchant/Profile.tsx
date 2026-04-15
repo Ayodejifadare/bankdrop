@@ -51,6 +51,24 @@ export const ProfileView: React.FC<ProfileProps> = ({ onBack }) => {
       </motion.div>
       
       <h1 className={styles.title} style={{ fontSize: '1.5rem', marginBottom: '4px' }}>{state.name}</h1>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: 'var(--spacing-md)' }}>
+        <span className={styles.rewardCategory} style={{ background: 'rgba(212, 175, 55, 0.1)', color: 'var(--brand-accent)' }}>
+          {state.businessCategory || 'Merchant'}
+        </span>
+      </div>
+      
+      {state.businessProfile && (
+        <p style={{ 
+          fontSize: '0.875rem', 
+          color: 'var(--text-secondary)', 
+          maxWidth: '300px', 
+          margin: '0 auto var(--spacing-xl)',
+          lineHeight: 1.6 
+        }}>
+          {state.businessProfile}
+        </p>
+      )}
+
       <p className={styles.profileHandle}>merchant.bankdrop.io/{state.name.toLowerCase().replace(/\s+/g, '-')}</p>
 
       <div className={styles.bankCheckCard}>
