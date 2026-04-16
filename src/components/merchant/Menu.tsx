@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
-import type { MenuItem } from '../../context/MerchantContext';
+import type { MenuItem } from '../../types/merchant';
 import { Button } from '../ui/Button';
 import { Input, Select } from '../ui/Input';
 import { 

@@ -10,6 +10,7 @@ interface CardProps {
   variant?: 'default' | 'elevated';
   className?: string;
   onClick?: () => void;
+  style?: React.CSSProperties;
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -20,6 +21,7 @@ export const Card: React.FC<CardProps> = ({
   variant = 'default',
   className = '',
   onClick,
+  style,
 }) => {
   const classes = [
     styles.card,
@@ -34,6 +36,7 @@ export const Card: React.FC<CardProps> = ({
       transition={{ duration: 0.5, ease: 'easeOut' }}
       className={classes}
       onClick={onClick}
+      style={style}
     >
       <div className={styles.cardContent}>
         {(title || description) && (

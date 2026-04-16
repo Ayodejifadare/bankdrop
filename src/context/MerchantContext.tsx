@@ -389,11 +389,6 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
-  const clearCheck = (id: string) => {
-    // Reuse the automated 'paid' logic which handles archiving and resetting
-    updateCheckStatus(id, 'paid');
-  };
-
   const addReward = (reward: Reward) => {
     setState(prev => ({ ...prev, rewards: [...prev.rewards, reward] }));
   };
@@ -433,7 +428,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const invoice = prev.invoices.find(c => c.id === id);
         if (invoice && invoice.total > 0) {
           newActivities.unshift({
-            id: `act_${Date.now()}`,
+            id: genId('act'),
             type: 'invoice_payment',
             amount: invoice.total,
             referenceId: id,
@@ -460,7 +455,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       const newVerification: PendingVerification = {
         ...verification,
-        id: `VER-${Date.now()}`,
+        id: genId('VER'),
         timestamp: new Date().toISOString(),
         status: 'pending'
       };

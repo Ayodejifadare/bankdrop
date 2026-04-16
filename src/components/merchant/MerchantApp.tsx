@@ -10,7 +10,7 @@ import {
   Gift
 } from 'lucide-react';
 import { useMerchant } from '../../context/MerchantContext';
-import type { Invoice } from '../../context/MerchantContext';
+import type { Invoice } from '../../types/merchant';
 import { MerchantAuth } from './MerchantAuth';
 import { MerchantOnboarding } from './Onboarding';
 import { MenuManager } from './Menu';
@@ -220,7 +220,13 @@ export const MerchantApp: React.FC = () => {
         );
       case 3: return <QRManager />;
       case 4: return <RewardsManager initialAdding={isAddingReward} onAddingComplete={() => setIsAddingReward(false)} />;
-      default: return <Dashboard onTabChange={(tab) => setActiveTab(tab)} onViewAll={() => setViewActivityLog(true)} />;
+      default: return (
+        <Dashboard 
+          onTabChange={(tab) => setActiveTab(tab)} 
+          onViewAll={() => setViewActivityLog(true)} 
+          onOpenNotifications={() => setIsNotificationsOpen(true)}
+        />
+      );
     }
   };
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Invoice } from '../../context/MerchantContext';
+import type { Invoice, InvoiceItem, Installment } from '../../types/merchant';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface InvoicePDFContentProps {
@@ -52,7 +52,7 @@ export const InvoicePDFContent: React.FC<InvoicePDFContentProps> = ({ invoice, m
           </tr>
         </thead>
         <tbody>
-          {invoice.items.map((item) => (
+          {invoice.items.map((item: InvoiceItem) => (
             <tr key={item.id} style={{ borderBottom: '1px solid #f9f9f9' }}>
               <td style={{ padding: '16px 0', fontWeight: 600 }}>{item.name || 'Custom Service'}</td>
               <td style={{ textAlign: 'center', padding: '16px 0' }}>{item.quantity}</td>
@@ -87,7 +87,7 @@ export const InvoicePDFContent: React.FC<InvoicePDFContentProps> = ({ invoice, m
                     <td style={{ padding: '8px 0', opacity: 0.5 }}>Paid Now</td>
                     <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>₦{(invoice.paymentPlan?.depositAmount || 0).toLocaleString()}</td>
                   </tr>
-                  {(invoice.paymentPlan?.installments || []).map((inst) => (
+                  {(invoice.paymentPlan?.installments || []).map((inst: Installment) => (
                     <tr key={inst.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                       <td style={{ padding: '8px 0', fontWeight: 600 }}>{inst.label}</td>
                       <td style={{ padding: '8px 0', opacity: 0.5 }}>
@@ -105,7 +105,7 @@ export const InvoicePDFContent: React.FC<InvoicePDFContentProps> = ({ invoice, m
         <div style={{ minWidth: '240px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', opacity: 0.6 }}>
             <span>Subtotal</span>
-            <span>₦{invoice.items.reduce((sum, i) => sum + (i.price * i.quantity), 0).toLocaleString()}</span>
+            <span>₦{invoice.items.reduce((sum: number, i: InvoiceItem) => sum + (i.price * i.quantity), 0).toLocaleString()}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 0', borderTop: '2px solid #000', fontSize: '20px', fontWeight: 800 }}>
             <span>Total Amount</span>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
-import type { Invoice } from '../../context/MerchantContext';
+import type { Invoice } from '../../types/merchant';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { StatusPill } from '../ui/StatusPill';

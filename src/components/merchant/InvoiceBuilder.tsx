@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
-import type { Invoice, InvoiceItem, MenuItem, Installment } from '../../context/MerchantContext';
+import type { Invoice, InvoiceItem, MenuItem, Installment } from '../../types/merchant';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import styles from './MerchantUI.module.css';
@@ -146,7 +146,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
 
   const addCustomItem = () => {
     const newItem: InvoiceItem = {
-      id: Date.now().toString(),
+      id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
       name: '',
       price: 0,
       quantity: 1
