@@ -145,6 +145,7 @@ interface MerchantContextType {
   updateInvoiceStatus: (id: string, status: Invoice['status']) => void;
   requestVerification: (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => void;
   resolveVerification: (id: string, confirmed: boolean) => void;
+  resetCheck: (id: string) => void;
 }
 
 const MerchantContext = createContext<MerchantContextType | undefined>(undefined);
@@ -353,24 +354,48 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const updateCheckStatus = (id: string, status: 'open' | 'active' | 'paid') => {
     setState(prev => {
       const newActivities = [...prev.activities];
+      const newOrderHistory = [...prev.orderHistory];
+      let newChecks = [...prev.checks];
+
       if (status === 'paid') {
         const check = prev.checks.find(c => c.id === id);
         if (check && check.total > 0) {
+          const pastOrderId = `ord_${Date.now()}`;
+          
+          // Move to history
+          newOrderHistory.unshift({
+            id: pastOrderId,
+            checkId: id,
+            orders: [...check.orders],
+            total: check.total,
+            timestamp: new Date().toISOString()
+          });
+
+          // Create activity linked to unique order
           newActivities.unshift({
             id: `act_${Date.now()}`,
             type: 'check_payment',
             amount: check.total,
-            referenceId: id,
+            referenceId: pastOrderId,
             title: `Check #${id}`,
-            subtitle: 'Paid at counter',
+            subtitle: 'Paid and settled',
             timestamp: new Date().toISOString()
           });
+
+          // Reset the check to 'open' automatically
+          newChecks = newChecks.map(c => 
+            c.id === id ? { ...c, status: 'open', orders: [], total: 0 } : c
+          );
         }
+      } else {
+        newChecks = newChecks.map(c => c.id === id ? { ...c, status } : c);
       }
+
       return {
         ...prev,
-        checks: prev.checks.map(c => c.id === id ? { ...c, status } : c),
-        activities: newActivities
+        checks: newChecks,
+        activities: newActivities,
+        orderHistory: newOrderHistory
       };
     });
   };
@@ -459,28 +484,8 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const clearCheck = (id: string) => {
-    setState(prev => {
-      const check = prev.checks.find(c => c.id === id);
-      const newOrderHistory = [...prev.orderHistory];
-
-      if (check && check.orders.length > 0) {
-        newOrderHistory.unshift({
-          id: `ord_${Date.now()}`,
-          checkId: id,
-          orders: [...check.orders],
-          total: check.total,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      return {
-        ...prev,
-        checks: prev.checks.map(c => 
-          c.id === id ? { ...c, status: 'open', orders: [], total: 0 } : c
-        ),
-        orderHistory: newOrderHistory
-      };
-    });
+    // Reuse the automated 'paid' logic which handles archiving and resetting
+    updateCheckStatus(id, 'paid');
   };
 
   const addReward = (reward: Reward) => {
@@ -561,6 +566,15 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
+  const resetCheck = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      checks: prev.checks.map(c => 
+        c.id === id ? { ...c, status: 'open', orders: [], total: 0 } : c
+      )
+    }));
+  };
+
   const resolveVerification = (id: string, confirmed: boolean) => {
     setState(prev => {
       const verifications = prev.pendingVerifications || [];
@@ -573,20 +587,38 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       const newState = { ...prev, pendingVerifications: newVerifications };
       const newActivities = [...prev.activities];
+      const newOrderHistory = [...prev.orderHistory];
 
       // Update actual status if confirmed
       if (confirmed) {
         if (verification.type === 'check') {
-          newState.checks = newState.checks.map(c => 
-            c.id === verification.targetId ? { ...c, status: 'paid' } : c
-          );
+          // Automation: Automatically clear the check when confirmed
+          const checkId = verification.targetId;
+          const check = prev.checks.find(c => c.id === checkId);
+          const pastOrderId = `ord_${Date.now()}`;
+          
+          if (check && check.orders.length > 0) {
+            newOrderHistory.unshift({
+                id: pastOrderId,
+                checkId: checkId,
+                orders: [...check.orders],
+                total: check.total,
+                timestamp: new Date().toISOString()
+            });
+
+            // Wipe the check back to 'open' state
+            newState.checks = newState.checks.map(c => 
+              c.id === checkId ? { ...c, status: 'open', orders: [], total: 0 } : c
+            );
+          }
+
           newActivities.unshift({
             id: `act_${Date.now()}`,
             type: 'check_payment',
             amount: verification.amount,
-            referenceId: verification.targetId,
-            title: `Check #${verification.targetId}`,
-            subtitle: 'Verified remote payment',
+            referenceId: pastOrderId, // Link to unique order, not reusable check ID
+            title: `Check #${checkId}`,
+            subtitle: 'Paid and settled (Remote)',
             timestamp: new Date().toISOString()
           });
         } else if (verification.type === 'invoice') {
@@ -598,7 +630,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             id: `act_${Date.now()}`,
             type: 'invoice_payment',
             amount: verification.amount,
-            referenceId: verification.targetId,
+            referenceId: verification.targetId, // Invoices have unique IDs
             title: `Invoice ${verification.targetId}`,
             subtitle: inv ? `Paid by ${inv.customerName}` : 'Verified remote payment',
             timestamp: new Date().toISOString()
@@ -606,6 +638,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
       newState.activities = newActivities;
+      newState.orderHistory = newOrderHistory;
       return newState;
     });
   };
@@ -641,7 +674,8 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       updateInvoice,
       updateInvoiceStatus,
       requestVerification,
-      resolveVerification
+      resolveVerification,
+      resetCheck
     }}>
       {children}
     </MerchantContext.Provider>

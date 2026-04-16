@@ -47,7 +47,7 @@ const QuantityStepper: React.FC<QuantityStepperProps> = ({ value, onIncrease, on
 );
 
 export const CheckManager: React.FC = () => {
-  const { state, addOrdersToCheck, updateOrderQuantity, updateCheckStatus, clearCheck } = useMerchant();
+  const { state, addOrdersToCheck, updateOrderQuantity, updateCheckStatus, clearCheck, resetCheck } = useMerchant();
   const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -195,11 +195,11 @@ export const CheckManager: React.FC = () => {
             </div>
 
             {selectedCheck?.status === 'open' ? (
-              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+              <div style={{ textAlign: 'center', padding: '40px 16px' }}>
                 <Users size={64} style={{ opacity: 0.1, marginBottom: '24px' }} />
                 <h3>Check is empty</h3>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-xl)' }}>
-                  Start a new order for this table
+                <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-xl)', fontSize: '0.925rem' }}>
+                  This table is currently available. Start a new order to begin.
                 </p>
                 <Button variant="accent" fullWidth onClick={() => setIsAddingItem(true)}>
                   <Plus size={18} /> New Order
@@ -264,123 +264,126 @@ export const CheckManager: React.FC = () => {
                       <Button variant="primary" fullWidth onClick={() => updateCheckStatus(selectedCheckId, 'paid')}>
                         Settled / Paid
                       </Button>
+                      <Button 
+                        variant="outline" 
+                        fullWidth 
+                        onClick={() => selectedCheckId && resetCheck(selectedCheckId)}
+                        style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-secondary)' }}
+                      >
+                        <X size={18} /> Reset / Clear Check
+                      </Button>
                     </>
                   )}
-                  {selectedCheck?.status === 'paid' && (
-                    <Button variant="outline" fullWidth onClick={() => clearCheck(selectedCheckId)}>
-                      Clear & Close Check
-                    </Button>
-                  )}
-                </div>
-
-                {/* Inline Order History for this check */}
-                <div style={{ marginTop: 'var(--spacing-xxl)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--spacing-xl)' }}>
-                  <h3 style={{ fontSize: '1rem', marginBottom: 'var(--spacing-md)', opacity: 0.6 }}>Order History</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-                    {state.orderHistory
-                      .filter(o => o.checkId === selectedCheckId)
-                      .map(historyOrder => (
-                        <Card key={historyOrder.id}>
-                          <div 
-                            style={{ cursor: 'pointer' }} 
-                            onClick={() => setExpandedOrderId(expandedOrderId === historyOrder.id ? null : historyOrder.id)}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div>
-                                <div style={{ fontWeight: 600 }}>Order {historyOrder.id.slice(-6)}</div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                  {new Date(historyOrder.timestamp).toLocaleDateString()} • {new Date(historyOrder.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </div>
-                              </div>
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontWeight: 700, color: '#4ade80' }}>₦{historyOrder.total.toLocaleString()}</div>
-                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{historyOrder.orders.length} items</div>
-                              </div>
-                            </div>
-
-                            <AnimatePresence>
-                              {expandedOrderId === historyOrder.id && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: 'auto', opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  style={{ overflow: 'hidden' }}
-                                >
-                                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed var(--border-subtle)' }}>
-                                    {historyOrder.orders.map((o, i) => {
-                                      const menuItem = state.menu.find(m => m.id === o.menuItemId);
-                                      return (
-                                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.875rem' }}>
-                                          <span>{o.quantity}x {menuItem?.name || 'Item'}</span>
-                                          <span style={{ opacity: 0.7 }}>₦{((menuItem?.price || 0) * o.quantity).toLocaleString()}</span>
-                                        </div>
-                                      );
-                                    })}
-                                    <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
-                                      <Button size="small" variant="secondary" fullWidth onClick={(e) => { e.stopPropagation(); handleDownloadReceipt(historyOrder.id); }}>
-                                        Download Receipt
-                                      </Button>
-                                    </div>
-
-                                    {/* Hidden Receipt Component for PDF generation */}
-                                    <div style={{ position: 'fixed', left: '-2000px', top: 0 }}>
-                                      <div 
-                                        id={`receipt-${historyOrder.id}`}
-                                        style={{ 
-                                          width: '80mm', 
-                                          padding: '10mm', 
-                                          backgroundColor: '#ffffff', 
-                                          color: '#000000',
-                                          fontFamily: 'monospace',
-                                          fontSize: '12px'
-                                        }}
-                                      >
-                                        <div style={{ textAlign: 'center', marginBottom: '10px', fontWeight: 'bold', fontSize: '16px' }}>BANKDROP</div>
-                                        <div style={{ textAlign: 'center', marginBottom: '20px' }}>{state.name}</div>
-                                        <div style={{ borderBottom: '1px dashed #000', marginBottom: '10px' }} />
-                                        <div style={{ marginBottom: '10px' }}>
-                                          Check: #{historyOrder.checkId}<br />
-                                          Order ID: {historyOrder.id}<br />
-                                          Date: {new Date(historyOrder.timestamp).toLocaleString()}
-                                        </div>
-                                        <div style={{ borderBottom: '1px dashed #000', marginBottom: '10px' }} />
-                                        {historyOrder.orders.map((o, i) => {
-                                          const menuItem = state.menu.find(m => m.id === o.menuItemId);
-                                          return (
-                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                                              <span>{o.quantity} {menuItem?.name}</span>
-                                              <span>₦{((menuItem?.price || 0) * o.quantity).toLocaleString()}</span>
-                                            </div>
-                                          );
-                                        })}
-                                        <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }} />
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}>
-                                          <span>TOTAL</span>
-                                          <span>₦{historyOrder.total.toLocaleString()}</span>
-                                        </div>
-                                        <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }} />
-                                        <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '10px' }}>
-                                          Thank you for your business!<br />
-                                          Powered by Bankdrop
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        </Card>
-                      ))}
-                    {state.orderHistory.filter(o => o.checkId === selectedCheckId).length === 0 && (
-                      <div style={{ textAlign: 'center', padding: '20px', opacity: 0.4, fontStyle: 'italic', fontSize: '0.875rem' }}>
-                        No past orders for this table yet.
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
             )}
+
+            {/* Inline Order History for this check - Now Persistent */}
+            <div style={{ marginTop: 'var(--spacing-xxl)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--spacing-xl)' }}>
+              <h3 style={{ fontSize: '1rem', marginBottom: 'var(--spacing-md)', opacity: 0.6 }}>Order History</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                {state.orderHistory
+                  .filter(o => o.checkId === selectedCheckId)
+                  .map(historyOrder => (
+                    <Card key={historyOrder.id}>
+                      <div 
+                        style={{ cursor: 'pointer' }} 
+                        onClick={() => setExpandedOrderId(expandedOrderId === historyOrder.id ? null : historyOrder.id)}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontWeight: 600 }}>Order {historyOrder.id.slice(-6)}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {new Date(historyOrder.timestamp).toLocaleDateString()} • {new Date(historyOrder.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: 700, color: '#4ade80' }}>₦{historyOrder.total.toLocaleString()}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{historyOrder.orders.length} items</div>
+                          </div>
+                        </div>
+
+                        <AnimatePresence>
+                          {expandedOrderId === historyOrder.id && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              style={{ overflow: 'hidden' }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed var(--border-subtle)' }}>
+                                {historyOrder.orders.map((o, i) => {
+                                  const menuItem = state.menu.find(m => m.id === o.menuItemId);
+                                  return (
+                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.875rem' }}>
+                                      <span>{o.quantity}x {menuItem?.name || 'Item'}</span>
+                                      <span style={{ opacity: 0.7 }}>₦{((menuItem?.price || 0) * o.quantity).toLocaleString()}</span>
+                                    </div>
+                                  );
+                                })}
+                                <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
+                                  <Button size="small" variant="secondary" fullWidth onClick={(e) => { e.stopPropagation(); handleDownloadReceipt(historyOrder.id); }}>
+                                    Download Receipt
+                                  </Button>
+                                </div>
+
+                                <div style={{ position: 'fixed', left: '-2000px', top: 0 }}>
+                                  <div 
+                                    id={`receipt-${historyOrder.id}`}
+                                    style={{ 
+                                      width: '80mm', 
+                                      padding: '10mm', 
+                                      backgroundColor: '#ffffff', 
+                                      color: '#000000',
+                                      fontFamily: 'monospace',
+                                      fontSize: '12px'
+                                    }}
+                                  >
+                                    <div style={{ textAlign: 'center', marginBottom: '10px', fontWeight: 'bold', fontSize: '16px' }}>BANKDROP</div>
+                                    <div style={{ textAlign: 'center', marginBottom: '20px' }}>{state.name}</div>
+                                    <div style={{ borderBottom: '1px dashed #000', marginBottom: '10px' }} />
+                                    <div style={{ marginBottom: '10px' }}>
+                                      Check: #{historyOrder.checkId}<br />
+                                      Order ID: {historyOrder.id}<br />
+                                      Date: {new Date(historyOrder.timestamp).toLocaleString()}
+                                    </div>
+                                    <div style={{ borderBottom: '1px dashed #000', marginBottom: '10px' }} />
+                                    {historyOrder.orders.map((o, i) => {
+                                      const menuItem = state.menu.find(m => m.id === o.menuItemId);
+                                      return (
+                                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                          <span>{o.quantity} {menuItem?.name}</span>
+                                          <span>₦{((menuItem?.price || 0) * o.quantity).toLocaleString()}</span>
+                                        </div>
+                                      );
+                                    })}
+                                    <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }} />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}>
+                                      <span>TOTAL</span>
+                                      <span>₦{historyOrder.total.toLocaleString()}</span>
+                                    </div>
+                                    <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }} />
+                                    <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '10px' }}>
+                                      Thank you for your business!<br />
+                                      Powered by Bankdrop
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </Card>
+                  ))}
+                {state.orderHistory.filter(o => o.checkId === selectedCheckId).length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '20px', opacity: 0.4, fontStyle: 'italic', fontSize: '0.875rem' }}>
+                    No past orders for this table yet.
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* In-check Menu Selection Modal */}
             <AnimatePresence>

@@ -23,15 +23,22 @@ import { ProfileView } from './Profile';
 import { ActivityLog } from './ActivityLog';
 import { InvoiceBuilder } from './InvoiceBuilder';
 import { PaymentAlert } from './PaymentAlert';
+import { NotificationCenter } from './NotificationCenter';
 import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
 import { motion } from 'framer-motion';
 import styles from './MerchantUI.module.css';
 
 // Dashboard Screen Component
-const Dashboard: React.FC<{ onTabChange: (tab: number) => void; onViewAll: () => void }> = ({ onTabChange, onViewAll }) => {
+const Dashboard: React.FC<{ 
+  onTabChange: (tab: number) => void; 
+  onViewAll: () => void;
+  onOpenNotifications: () => void;
+}> = ({ onTabChange, onViewAll, onOpenNotifications }) => {
   const { state } = useMerchant();
   const activeChecks = state.checks.filter(c => c.status === 'active').length;
   const totalToday = state.checks.reduce((acc, c) => acc + (c.status === 'paid' ? c.total : 0), 0);
+  const pendingVerifications = state.pendingVerifications?.filter(v => v.status === 'pending') || [];
 
   return (
     <div className={styles.merchantApp}>
@@ -41,11 +48,40 @@ const Dashboard: React.FC<{ onTabChange: (tab: number) => void; onViewAll: () =>
             <h1 className={styles.title} style={{ fontSize: '1.75rem' }}>Welcome, {state.name}</h1>
             <p style={{ color: 'var(--text-secondary)' }}>Today's overview - ₦{totalToday.toLocaleString()}</p>
           </div>
-          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-            <Bell size={24} style={{ cursor: 'pointer' }} />
+          <motion.div 
+            whileHover={{ scale: 1.1 }} 
+            whileTap={{ scale: 0.9 }}
+            style={{ position: 'relative', cursor: 'pointer' }}
+            onClick={onOpenNotifications}
+          >
+            <Bell size={24} />
+            {pendingVerifications.length > 0 && (
+              <span className={styles.notificationBadge}>{pendingVerifications.length}</span>
+            )}
           </motion.div>
         </div>
       </header>
+
+      {pendingVerifications.length > 0 && (
+        <Card 
+          style={{ 
+            marginBottom: 'var(--spacing-lg)', 
+            border: '2px solid var(--brand-accent)',
+            background: 'rgba(212, 175, 55, 0.05)'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Bell size={20} color="var(--brand-accent)" />
+              <div>
+                <div style={{ fontWeight: 700 }}>{pendingVerifications.length} Pending Verifications</div>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Action required for customer payments</p>
+              </div>
+            </div>
+            <Button size="small" variant="primary" onClick={onOpenNotifications}>View</Button>
+          </div>
+        </Card>
+      )}
 
       <div className={styles.statsContainer}>
         <Card title="Active Checks">
@@ -118,6 +154,7 @@ export const MerchantApp: React.FC = () => {
   const { state, isAuthenticated } = useMerchant();
   const [activeTab, setActiveTab] = useState(0);
   const [isActionHubOpen, setIsActionHubOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [viewProfile, setViewProfile] = useState(false);
   const [viewActivityLog, setViewActivityLog] = useState(false);
   const [segmentView, setSegmentView] = useState<'checks' | 'invoices'>('checks');
@@ -158,7 +195,13 @@ export const MerchantApp: React.FC = () => {
     if (viewActivityLog) return <ActivityLog onBack={() => setViewActivityLog(false)} />;
     
     switch (activeTab) {
-      case 0: return <Dashboard onTabChange={(tab) => setActiveTab(tab)} onViewAll={() => setViewActivityLog(true)} />;
+      case 0: return (
+        <Dashboard 
+          onTabChange={(tab) => setActiveTab(tab)} 
+          onViewAll={() => setViewActivityLog(true)} 
+          onOpenNotifications={() => setIsNotificationsOpen(true)}
+        />
+      );
       case 1: return <MenuManager initialAdding={isAddingMenuItem} onAddingComplete={() => setIsAddingMenuItem(false)} />;
       case 2: 
         return segmentView === 'checks' ? (
@@ -297,6 +340,10 @@ export const MerchantApp: React.FC = () => {
         }}
       />
       <PaymentAlert />
+      <NotificationCenter 
+        isOpen={isNotificationsOpen} 
+        onClose={() => setIsNotificationsOpen(false)} 
+      />
     </div>
   );
 };

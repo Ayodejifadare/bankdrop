@@ -56,8 +56,8 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
 
   const getDetails = (activity: MerchantActivity) => {
     if (activity.type === 'check_payment') {
-      // Find the most recent order history for this check
-      return orderHistory.find(oh => oh.checkId === activity.referenceId);
+      // Strict lookup: Match by unique order ID only to prevent item mismatch
+      return orderHistory.find(oh => oh.id === activity.referenceId);
     } else if (activity.type === 'invoice_payment') {
       return invoices.find(inv => inv.id === activity.referenceId);
     }
