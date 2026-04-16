@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
-import type { Invoice, InvoiceItem, MenuItem } from '../../context/MerchantContext';
+import type { Invoice, InvoiceItem, MenuItem, Installment } from '../../context/MerchantContext';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import styles from './MerchantUI.module.css';
@@ -36,9 +36,90 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
   const [generatedInvoiceId, setGeneratedInvoiceId] = useState<string | null>(initialData?.id || null);
   
   // Payment Plan state
-  const [hasPlan, setHasPlan] = useState(!!initialData?.paymentPlan);
-  const [depositPercent, setDepositPercent] = useState(initialData?.paymentPlan?.depositPercent || 50);
-  const [remainingRule, setRemainingRule] = useState(initialData?.paymentPlan?.rule || 'on delivery');
+  const [hasPlan, setHasPlan] = useState(!!initialData?.paymentPlan?.installments);
+  const [depositPercent, setDepositPercent] = useState(() => {
+    if (initialData?.paymentPlan?.depositAmount && initialData.total) {
+      return Math.round((initialData.paymentPlan.depositAmount * 100) / initialData.total);
+    }
+    return 50;
+  });
+
+  const [planMode, setPlanMode] = useState<'delivery' | 'date' | 'installments'>(() => {
+    const freq = initialData?.paymentPlan?.frequency;
+    if (freq === 'scheduled') return 'date';
+    if (freq === 'on_delivery' || !freq) return 'delivery';
+    return 'installments';
+  });
+
+  const [installmentCount, setInstallmentCount] = useState(initialData?.paymentPlan?.installments?.length || 3);
+  const [installmentFrequency, setInstallmentFrequency] = useState<'weekly' | 'bi-weekly' | 'monthly'>(() => {
+    const freq = initialData?.paymentPlan?.frequency;
+    if (freq === 'weekly' || freq === 'bi-weekly' || freq === 'monthly') return freq;
+    return 'monthly';
+  });
+
+  const [scheduledDate, setScheduledDate] = useState(() => {
+    if (initialData?.paymentPlan?.frequency === 'scheduled' && initialData.paymentPlan.installments[0]) {
+      const date = initialData.paymentPlan.installments[0].dueDate;
+      if (date && date !== 'on_delivery') return date.split('T')[0];
+    }
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    return d.toISOString().split('T')[0];
+  });
+
+  // Helper to map UI state to schema frequency
+  const getFrequencyFromMode = () => {
+    if (planMode === 'installments') return installmentFrequency;
+    if (planMode === 'date') return 'scheduled';
+    return 'on_delivery';
+  };
+
+  const calculatedTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const finalTotal = totalOverride !== null ? totalOverride : calculatedTotal;
+
+  const depositAmount = Math.round((finalTotal * depositPercent) / 100);
+  const remainingAmount = finalTotal - depositAmount;
+
+  // Generate artifacts for current plan
+  const installments: Installment[] = useMemo(() => {
+    if (!hasPlan) return [];
+    
+    if (planMode === 'delivery' || planMode === 'date') {
+      return [{
+        id: 'bal-1',
+        label: 'Balance Payment',
+        amount: remainingAmount,
+        dueDate: planMode === 'date' ? scheduledDate : 'on_delivery',
+        status: 'pending'
+      }];
+    }
+
+    // Generate multi-installments (planMode === 'installments')
+    const perInstallment = Math.round(remainingAmount / installmentCount);
+    const schedule: Installment[] = [];
+    
+    const now = new Date();
+    for (let i = 0; i < installmentCount; i++) {
+      const date = new Date(now);
+      if (installmentFrequency === 'monthly') {
+        date.setMonth(date.getMonth() + (i + 1));
+      } else if (installmentFrequency === 'bi-weekly') {
+        date.setDate(date.getDate() + ((i + 1) * 14));
+      } else {
+        date.setDate(date.getDate() + ((i + 1) * 7));
+      }
+      
+      schedule.push({
+        id: `inst-${i}`,
+        label: `Installment ${i + 1} of ${installmentCount}`,
+        amount: i === installmentCount - 1 ? remainingAmount - (perInstallment * (installmentCount - 1)) : perInstallment,
+        dueDate: date.toISOString(),
+        status: 'pending'
+      });
+    }
+    return schedule;
+  }, [hasPlan, planMode, remainingAmount, installmentCount, installmentFrequency, scheduledDate]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,8 +130,6 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
 
   const invoiceRef = useRef<HTMLDivElement>(null);
 
-  const calculatedTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const finalTotal = totalOverride !== null ? totalOverride : calculatedTotal;
 
   const handleAddItem = (menuItem: MenuItem) => {
     // eslint-disable-next-line react-hooks/purity
@@ -91,9 +170,9 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
         items,
         total: finalTotal,
         paymentPlan: hasPlan ? {
-          type: 'upfront',
-          depositPercent,
-          rule: remainingRule
+          depositAmount,
+          installments,
+          frequency: getFrequencyFromMode()
         } : undefined
       };
       updateInvoice(updatedInvoice);
@@ -110,9 +189,9 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
         status: 'unpaid',
         createdAt: new Date().toISOString(),
         paymentPlan: hasPlan ? {
-          type: 'upfront',
-          depositPercent,
-          rule: remainingRule
+          depositAmount,
+          installments,
+          frequency: getFrequencyFromMode()
         } : undefined
       };
       createInvoice(newInvoice);
@@ -150,10 +229,9 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
       style={{ 
-        backgroundColor: 'var(--bg-primary)', 
-        minHeight: '100vh',
-        width: '100%',
-        padding: 'var(--spacing-md)', 
+        flex: 1,
+        minHeight: '100%',
+        padding: 0, // Parent container now handles the padding (styles.contentFull)
         position: 'relative',
         zIndex: 100,
         display: 'flex',
@@ -251,7 +329,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
                             value={item.price}
                             onChange={(e) => updateItem(item.id, { price: parseInt(e.target.value) || 0 })}
                           />
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '4px' }}>Σ ₦</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '4px' }}>Σ</span>
                           <input 
                             type="number"
                             style={{ 
@@ -427,7 +505,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
                     <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Deposit / Upfront Amount (%)</label>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      {[20, 50, 70].map(p => (
+                      {[25, 50, 75].map(p => (
                         <Button 
                           key={p} 
                           size="small" 
@@ -441,24 +519,132 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
                     </div>
                   </div>
 
-                  <Input
-                    label="Balance Rule (e.g. Monthly, On Delivery)"
-                    placeholder="e.g. 6 month installments"
-                    value={remainingRule}
-                    onChange={(e) => setRemainingRule(e.target.value)}
-                    style={{ marginTop: '16px' }}
-                  />
+                  <div style={{ marginTop: '24px' }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      backgroundColor: 'var(--bg-tertiary)', 
+                      padding: '4px', 
+                      borderRadius: '12px',
+                      marginBottom: '16px',
+                      border: '1px solid var(--border-subtle)'
+                    }}>
+                      {[
+                        { id: 'delivery', label: 'Delivery' },
+                        { id: 'date', label: 'By Date' },
+                        { id: 'installments', label: 'Installments' }
+                      ].map(mode => (
+                        <button 
+                          key={mode.id}
+                          onClick={() => setPlanMode(mode.id as any)}
+                          style={{
+                            flex: 1,
+                            padding: '10px 4px',
+                            fontSize: '0.75rem',
+                            borderRadius: '8px',
+                            border: 'none',
+                            backgroundColor: planMode === mode.id ? 'var(--brand-accent)' : 'transparent',
+                            color: planMode === mode.id ? '#000' : 'var(--text-secondary)',
+                            fontWeight: 700,
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {mode.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {planMode === 'installments' && (
+                      <div style={{ 
+                        display: 'flex', 
+                        gap: '12px', 
+                        marginBottom: '16px',
+                        padding: '12px',
+                        backgroundColor: 'rgba(212, 175, 55, 0.05)',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(212, 175, 55, 0.1)'
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Frequency</label>
+                          <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                            {['weekly', 'bi-weekly', 'monthly'].map(f => (
+                              <button 
+                                key={f}
+                                onClick={() => setInstallmentFrequency(f as any)}
+                                style={{ 
+                                  flex: 1, 
+                                  padding: '6px', 
+                                  fontSize: '0.75rem', 
+                                  borderRadius: '6px',
+                                  border: '1px solid var(--border-subtle)',
+                                  backgroundColor: installmentFrequency === f ? 'var(--bg-tertiary)' : 'transparent',
+                                  color: installmentFrequency === f ? 'var(--brand-accent)' : 'var(--text-secondary)',
+                                  fontWeight: installmentFrequency === f ? 700 : 400
+                                }}
+                              >
+                                {f.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('-')}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{ width: '80px' }}>
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Count</label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                            <button onClick={() => setInstallmentCount(Math.max(2, installmentCount - 1))} style={{ padding: '4px', background: 'none', border: 'none' }}><Minus size={14}/></button>
+                            <span style={{ fontWeight: 700 }}>{installmentCount}</span>
+                            <button onClick={() => setInstallmentCount(Math.min(12, installmentCount + 1))} style={{ padding: '4px', background: 'none', border: 'none' }}><Plus size={14}/></button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {planMode === 'date' && (
+                      <motion.div 
+                        animate={{ opacity: 1, y: 0 }} 
+                        initial={{ opacity: 0, y: -10 }}
+                        style={{ marginBottom: '16px' }}
+                      >
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Select Fulfillment Date</label>
+                        <Input 
+                          type="date" 
+                          value={scheduledDate}
+                          onChange={(e) => setScheduledDate(e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
+                        />
+                      </motion.div>
+                    )}
+                  </div>
 
                   <div style={{ 
-                    marginTop: '16px', 
-                    padding: '12px', 
+                    marginTop: '4px', 
+                    padding: '16px', 
                     backgroundColor: 'var(--bg-primary)', 
-                    borderRadius: '8px',
-                    fontSize: '0.875rem' 
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-subtle)'
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Due Now ({depositPercent}%):</span>
-                      <span style={{ fontWeight: 700 }}>₦{((finalTotal * depositPercent) / 100).toLocaleString()}</span>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '0.05em' }}>
+                      Payment Schedule
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>Deposit / Upfront</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Due immediately</div>
+                        </div>
+                        <div style={{ fontWeight: 700 }}>₦{depositAmount.toLocaleString()}</div>
+                      </div>
+                      
+                      {installments.map((inst) => (
+                        <div key={inst.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '12px' }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{inst.label}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {inst.dueDate === 'on_delivery' ? 'On Delivery' : new Date(inst.dueDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                            </div>
+                          </div>
+                          <div style={{ fontWeight: 700 }}>₦{inst.amount.toLocaleString()}</div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </motion.div>
@@ -627,7 +813,11 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
                 total: finalTotal,
                 status: 'unpaid',
                 createdAt: new Date().toISOString(),
-                paymentPlan: hasPlan ? { type: 'upfront', depositPercent, rule: remainingRule } : undefined
+                paymentPlan: hasPlan ? { 
+                  depositAmount, 
+                  installments,
+                  frequency: getFrequencyFromMode()
+                } : undefined
               }}
             />
           </div>

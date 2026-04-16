@@ -32,6 +32,13 @@
   padding-bottom: 100px; /* Space for bottom nav */
 }
 
+.contentFull {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+  padding-bottom: 0; /* No space for bottom nav */
+}
+
 .bottomNav {
   position: fixed;
   bottom: 0;

@@ -30,10 +30,18 @@ export interface InvoiceItem {
   quantity: number;
 }
 
+export interface Installment {
+  id: string;
+  label: string;
+  amount: number;
+  dueDate: string | 'on_delivery';
+  status: 'pending' | 'paid';
+}
+
 export interface PaymentPlan {
-  type: 'upfront' | 'installments';
-  depositPercent: number;
-  rule: string; // e.g., "Balance on delivery" or "6 monthly payments"
+  depositAmount: number;
+  installments: Installment[];
+  frequency?: 'weekly' | 'bi-weekly' | 'monthly' | 'on_delivery' | 'scheduled';
 }
 
 export interface Invoice {

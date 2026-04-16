@@ -217,7 +217,7 @@ export const MerchantApp: React.FC = () => {
       </div>
       )}
 
-      <div className={styles.content}>
+      <div className={isBuildingInvoice ? styles.contentFull : styles.content}>
         {renderContent()}
       </div>
 

@@ -195,7 +195,15 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     color: 'var(--brand-accent)'
                   }}>
                     <Clock size={12} />
-                    <span>Plan: {invoice.paymentPlan.depositPercent}% Upfront + {invoice.paymentPlan.rule}</span>
+                    <span>
+                      Schedule: ₦{(invoice.paymentPlan?.depositAmount || 0).toLocaleString()} Upfront + {
+                        invoice.paymentPlan?.frequency === 'on_delivery' 
+                          ? 'Balance on Delivery' 
+                          : invoice.paymentPlan?.frequency === 'scheduled' && invoice.paymentPlan?.installments?.[0]
+                            ? `Balance on ${new Date(invoice.paymentPlan.installments[0].dueDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}`
+                            : `${invoice.paymentPlan?.installments?.length || 0} ${invoice.paymentPlan?.frequency?.replace('-', ' ') || ''} installments`
+                      }
+                    </span>
                   </div>
                 )}
               </Card>

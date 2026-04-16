@@ -78,9 +78,26 @@ export const InvoicePDFContent: React.FC<InvoicePDFContentProps> = ({ invoice, m
           </div>
           
           {invoice.paymentPlan && (
-            <div style={{ marginTop: '24px', padding: '12px', backgroundColor: '#f9f9f9', borderRadius: '8px' }}>
-              <h4 style={{ margin: '0 0 4px 0', fontSize: '10px', textTransform: 'uppercase', opacity: 0.5 }}>Payment Plan</h4>
-              <p style={{ margin: 0, fontSize: '13px', fontWeight: 600 }}>{invoice.paymentPlan.depositPercent}% Upfront + {invoice.paymentPlan.rule}</p>
+            <div style={{ marginTop: '24px' }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.5 }}>Payment Schedule</h4>
+              <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                    <td style={{ padding: '8px 0', fontWeight: 600 }}>Upfront Deposit</td>
+                    <td style={{ padding: '8px 0', opacity: 0.5 }}>Paid Now</td>
+                    <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>₦{(invoice.paymentPlan?.depositAmount || 0).toLocaleString()}</td>
+                  </tr>
+                  {(invoice.paymentPlan?.installments || []).map((inst) => (
+                    <tr key={inst.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                      <td style={{ padding: '8px 0', fontWeight: 600 }}>{inst.label}</td>
+                      <td style={{ padding: '8px 0', opacity: 0.5 }}>
+                        {inst.dueDate === 'on_delivery' ? 'Due on Delivery' : new Date(inst.dueDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                      </td>
+                      <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>₦{(inst.amount || 0).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
