@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useMerchant, type MerchantActivity } from '../../context/MerchantContext';
+import { useMerchant } from '../../context/MerchantContext';
+import type { MerchantActivity, PastOrder, Invoice } from '../../types/merchant';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { 

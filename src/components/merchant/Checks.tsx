@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
-import type { Check } from '../../context/MerchantContext';
+import type { Check } from '../../types/merchant';
 import { Button } from '../ui/Button';
 import { 
   Users, 
@@ -47,7 +47,7 @@ const QuantityStepper: React.FC<QuantityStepperProps> = ({ value, onIncrease, on
 );
 
 export const CheckManager: React.FC = () => {
-  const { state, addOrdersToCheck, updateOrderQuantity, updateCheckStatus, clearCheck, resetCheck } = useMerchant();
+  const { state, addOrdersToCheck, updateOrderQuantity, updateCheckStatus, resetCheck } = useMerchant();
   const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
