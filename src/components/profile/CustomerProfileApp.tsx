@@ -3,9 +3,10 @@ import { useCustomerProfile } from '../../context/CustomerProfileContext';
 import { WalletManager } from './WalletManager';
 import { RewardsTracker } from './RewardsTracker';
 import { RecentActivity } from './RecentActivity';
+import { TransactionDetail } from './TransactionDetail';
 import { BottomNav } from './BottomNav';
 import { ProfileAuth } from './ProfileAuth';
-import type { ProfileTab } from '../../types/profile';
+import type { ProfileTab, Activity } from '../../types/profile';
 import styles from './ProfileUI.module.css';
 import { LogOut, ChevronLeft, User, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,6 +19,7 @@ export const CustomerProfileApp: React.FC<Props> = ({ onExit }) => {
   const { user, isAuthenticated, logout } = useCustomerProfile();
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
 
   if (!isAuthenticated || !user) {
     return <ProfileAuth onExit={onExit} />;
@@ -35,7 +37,7 @@ export const CustomerProfileApp: React.FC<Props> = ({ onExit }) => {
           >
             <WalletManager />
             <RewardsTracker />
-            <RecentActivity />
+            <RecentActivity onActivityClick={setSelectedActivity} />
             
             <footer style={{ padding: 'var(--spacing-xl)', marginBottom: 'var(--spacing-xxl)' }}>
               <button 
@@ -88,7 +90,7 @@ export const CustomerProfileApp: React.FC<Props> = ({ onExit }) => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
           >
-            <RecentActivity />
+            <RecentActivity onActivityClick={setSelectedActivity} />
           </motion.div>
         );
       default:
@@ -98,29 +100,38 @@ export const CustomerProfileApp: React.FC<Props> = ({ onExit }) => {
 
   return (
     <div className={styles.profileContainer}>
-      <header className={styles.header}>
-        <button onClick={onExit} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
-          <ChevronLeft size={20} />
-          <span style={{ fontWeight: 600 }}>Back</span>
-        </button>
-        <h1 className={styles.title}>
-          {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-        </h1>
-        <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center' }}>
-          <button style={{ color: 'var(--text-secondary)' }}><Bell size={20} /></button>
-          <motion.div 
-            className={styles.avatar}
-            onClick={() => setIsHeaderExpanded(!isHeaderExpanded)}
-            whileTap={{ scale: 0.95 }}
-            whileHover={{ borderColor: 'var(--brand-accent)' }}
+      <AnimatePresence>
+        {!selectedActivity && (
+          <motion.header 
+            className={styles.header}
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -20, opacity: 0 }}
           >
-            {user.avatar ? <img src={user.avatar} alt="User" /> : <User size={20} color="var(--text-muted)" />}
-          </motion.div>
-        </div>
-      </header>
+            <button onClick={onExit} style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
+              <ChevronLeft size={20} />
+              <span style={{ fontWeight: 600 }}>Back</span>
+            </button>
+            <h1 className={styles.title}>
+              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+            </h1>
+            <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center' }}>
+              <button style={{ color: 'var(--text-secondary)' }}><Bell size={20} /></button>
+              <motion.div 
+                className={styles.avatar}
+                onClick={() => setIsHeaderExpanded(!isHeaderExpanded)}
+                whileTap={{ scale: 0.95 }}
+                whileHover={{ borderColor: 'var(--brand-accent)' }}
+              >
+                {user.avatar ? <img src={user.avatar} alt="User" /> : <User size={20} color="var(--text-muted)" />}
+              </motion.div>
+            </div>
+          </motion.header>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
-        {isHeaderExpanded && (
+        {!selectedActivity && isHeaderExpanded && (
           <motion.div 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
@@ -135,13 +146,32 @@ export const CustomerProfileApp: React.FC<Props> = ({ onExit }) => {
         )}
       </AnimatePresence>
 
-      <main style={{ flex: 1, position: 'relative' }}>
+      <main style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
         <AnimatePresence mode="wait">
-          {renderContent()}
+          {!selectedActivity && renderContent()}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {selectedActivity && (
+            <TransactionDetail 
+              activity={selectedActivity} 
+              onClose={() => setSelectedActivity(null)} 
+            />
+          )}
         </AnimatePresence>
       </main>
 
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <AnimatePresence>
+        {!selectedActivity && (
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 20, opacity: 0 }}
+          >
+            <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

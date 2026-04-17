@@ -15,6 +15,7 @@ interface CustomerProfileContextType {
   linkAccount: (account: Omit<LinkedAccount, 'id' | 'balance' | 'isPrimary'>) => void;
   removeAccount: (id: string) => void;
   setPrimaryAccount: (id: string) => void;
+  addActivity: (activity: Omit<Activity, 'id'>) => void;
 }
 
 const CustomerProfileContext = createContext<CustomerProfileContextType | undefined>(undefined);
@@ -56,6 +57,12 @@ const INITIAL_STATE = {
       entity: 'Bankdrop Grill',
       timestamp: new Date().toISOString(),
       status: 'completed',
+      category: 'Food & Drink',
+      items: [
+        { name: 'Double Cheeseburger', quantity: 1, price: 2500 },
+        { name: 'Large Fries', quantity: 1, price: 1200 },
+        { name: 'Vanilla Milkshake', quantity: 1, price: 800 }
+      ]
     },
     {
       id: 'act_2',
@@ -66,6 +73,24 @@ const INITIAL_STATE = {
       status: 'completed',
     }
   ]
+};
+
+/**
+ * Migration helper to ensure legacy activity data is upgraded to the new itemized format.
+ */
+const migrateActivities = (loaded: Activity[]): Activity[] => {
+  return loaded.map(act => {
+    // Demo migration: Ensure act_1 always has its items for the showcase
+    if (act.id === 'act_1' && (!act.items || act.items.length === 0)) {
+      const demoAct = INITIAL_STATE.activities.find(a => a.id === 'act_1');
+      return { 
+        ...act, 
+        category: 'Food & Drink',
+        items: demoAct?.items 
+      };
+    }
+    return act;
+  });
 };
 
 export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -87,9 +112,10 @@ export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> = 
   
   const [rewards] = useState<VendorReward[]>(INITIAL_STATE.rewards);
   
-  const [activities] = useState<Activity[]>(() => {
+  const [activities, setActivities] = useState<Activity[]>(() => {
     const saved = localStorage.getItem('customer_activities');
-    return saved ? JSON.parse(saved) : INITIAL_STATE.activities;
+    const loaded: Activity[] = saved ? JSON.parse(saved) : INITIAL_STATE.activities;
+    return migrateActivities(loaded);
   });
 
   useEffect(() => {
@@ -111,7 +137,7 @@ export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> = 
 
   const checkEmail = async (email: string) => {
     setIsLoadingAuth(true);
-    await new Promise(resolve => setTimeout(resolve, 800)); // Simulate API
+    await new Promise(resolve => setTimeout(resolve, 800));
     setIsLoadingAuth(false);
     return { exists: email === INITIAL_STATE.user.email };
   };
@@ -159,13 +185,22 @@ export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> = 
       isPrimary: acc.id === id
     })));
   };
+  
+  const addActivity = (activityData: Omit<Activity, 'id'>) => {
+    const newActivity: Activity = {
+      ...activityData,
+      id: `act_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    };
+    setActivities(prev => [newActivity, ...prev]);
+  };
 
   return (
     <CustomerProfileContext.Provider value={{ 
       user, isAuthenticated, isLoadingAuth,
       wallet, rewards, activities, 
       checkEmail, login, signup, logout,
-      linkAccount, removeAccount, setPrimaryAccount 
+      linkAccount, removeAccount, setPrimaryAccount,
+      addActivity
     }}>
       {children}
     </CustomerProfileContext.Provider>

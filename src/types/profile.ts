@@ -21,6 +21,13 @@ export interface Activity {
   entity: string;
   timestamp: string;
   status: 'completed' | 'pending' | 'failed';
+  items?: {
+    name: string;
+    quantity: number;
+    price: number;
+  }[];
+  category?: string;
+  reference?: string;
 }
 
 export interface UserProfile {

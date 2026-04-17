@@ -292,7 +292,7 @@ export const CheckManager: React.FC = () => {
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
-                            <div style={{ fontWeight: 600 }}>Order {historyOrder.id.slice(-6)}</div>
+                            <div style={{ fontWeight: 600 }}>Order {historyOrder.id.split('_').pop()?.toUpperCase()}</div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                               {new Date(historyOrder.timestamp).toLocaleDateString()} • {new Date(historyOrder.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </div>

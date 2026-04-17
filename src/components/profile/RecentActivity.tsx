@@ -1,15 +1,18 @@
 import React from 'react';
 import { useCustomerProfile } from '../../context/CustomerProfileContext';
+import type { Activity } from '../../types/profile';
 import styles from './ProfileUI.module.css';
 import { ArrowUpRight, ArrowDownLeft, Clock } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { formatCurrency, formatShortDate } from '../../utils/formatters';
 
-export const RecentActivity: React.FC = () => {
+interface RecentActivityProps {
+  onActivityClick?: (activity: Activity) => void;
+}
+
+export const RecentActivity: React.FC<RecentActivityProps> = ({ onActivityClick }) => {
   const { activities } = useCustomerProfile();
 
-  const formatDate = (isoString: string) => {
-    const date = new Date(isoString);
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  };
 
   return (
     <section className={styles.section}>
@@ -25,7 +28,12 @@ export const RecentActivity: React.FC = () => {
       ) : (
         <div className={styles.activityList}>
           {activities.map(activity => (
-            <div key={activity.id} className={styles.activityItem}>
+            <motion.div 
+              key={activity.id} 
+              className={styles.activityItem}
+              onClick={() => onActivityClick?.(activity)}
+              whileTap={{ scale: 0.98 }}
+            >
               <div className={styles.activityInfo}>
                 <div className={styles.iconCircle}>
                   {activity.type === 'sent' ? (
@@ -36,13 +44,13 @@ export const RecentActivity: React.FC = () => {
                 </div>
                 <div className={styles.activityMain}>
                   <span className={styles.activityEntity}>{activity.entity}</span>
-                  <span className={styles.activityTime}>{formatDate(activity.timestamp)}</span>
+                  <span className={styles.activityTime}>{formatShortDate(activity.timestamp)}</span>
                 </div>
               </div>
               <div className={`${styles.activityAmount} ${activity.type === 'sent' ? styles.sent : styles.received}`}>
-                {activity.type === 'sent' ? '-' : '+'}₦{activity.amount.toLocaleString()}
+                {activity.type === 'sent' ? '-' : '+'}{formatCurrency(activity.amount)}
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       )}

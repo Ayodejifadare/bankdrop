@@ -1,3 +1,13 @@
+/* 
+  ProfileUI.module.css
+  Design System: Glassmorphism, Gold Accents, Dark Theme (Default)
+  Device Target: Mobile-First (< 500px)
+*/
+
+/* ==========================================
+   1. Layout & Containers
+   ========================================== */
+
 .profileContainer {
   min-height: 100vh;
   background-color: var(--bg-primary);
@@ -6,7 +16,7 @@
   flex-direction: column;
   max-width: 500px;
   margin: 0 auto;
-  padding: 0 0 80px 0; /* Space for a Bottom Nav instead of footer gap */
+  padding: 0 0 80px 0; /* Space for Bottom Nav */
   position: relative;
   overflow-x: hidden;
 }
@@ -43,6 +53,10 @@
   transition: border-color var(--transition-fast);
 }
 
+/* ==========================================
+   2. Components: Wallet & Accounts
+   ========================================== */
+
 .section {
   padding: var(--spacing-lg);
 }
@@ -62,7 +76,6 @@
   letter-spacing: 0.05em;
 }
 
-/* Wallet / Account Carousel */
 .walletCarousel {
   display: flex;
   gap: var(--spacing-md);
@@ -83,7 +96,6 @@
   position: relative;
 }
 
-/* Account Widget (QR area) */
 .accountWidget {
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
@@ -98,13 +110,16 @@
 }
 
 .qrContainer {
-  background: white; /* Always white for QR contrast */
+  background: white;
   padding: var(--spacing-md);
   border-radius: var(--radius-md);
   border: 1px solid #eee;
 }
 
-/* Rewards */
+/* ==========================================
+   3. Components: Rewards & Activity
+   ========================================== */
+
 .rewardGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -130,7 +145,6 @@
   font-family: var(--font-heading);
 }
 
-/* Activity */
 .activityList {
   display: flex;
   flex-direction: column;
@@ -141,8 +155,16 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--spacing-md) 0;
+  padding: var(--spacing-md);
   border-bottom: 1px solid var(--border-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+  margin: 0 calc(var(--spacing-md) * -1);
+  border-radius: var(--radius-md);
+}
+
+.activityItem:hover {
+  background-color: var(--bg-secondary);
 }
 
 .activityInfo {
@@ -183,98 +205,10 @@
 .sent { color: var(--text-primary); }
 .received { color: var(--brand-accent); }
 
-/* Link Account Overlay/Form */
-.overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.8);
-  display: flex;
-  align-items: flex-end;
-  z-index: 1000;
-}
+/* ==========================================
+   4. Feature: Authenticaton (Auth)
+   ========================================== */
 
-.overlayContent {
-  background: var(--bg-primary);
-  width: 100%;
-  max-width: 500px;
-  margin: 0 auto;
-  border-top-left-radius: var(--radius-lg);
-  border-top-right-radius: var(--radius-lg);
-  padding: var(--spacing-xl) var(--spacing-lg);
-  animation: slideUp 0.3s ease-out;
-}
-
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-
-
-/* Bottom Navigation */
-.bottomNav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 72px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  border-top: 1px solid var(--glass-border);
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  padding: 0 var(--spacing-md);
-  z-index: 1000;
-}
-
-/* Desktop Centering for BottomNav */
-@media (min-width: 501px) {
-  .bottomNav {
-    max-width: 500px;
-    margin: 0 auto;
-    border-left: 1px solid var(--glass-border);
-    border-right: 1px solid var(--glass-border);
-  }
-}
-
-.navItem {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  color: var(--text-muted);
-  font-size: 0.625rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  padding: var(--spacing-sm);
-  border-radius: var(--radius-md);
-}
-
-.navItemActive {
-  color: var(--brand-accent);
-}
-
-.navIconWrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.activeDot {
-  position: absolute;
-  bottom: -6px;
-  width: 4px;
-  height: 4px;
-  border-radius: var(--radius-full);
-}
-
-/* Auth Styles */
 .authContainer {
   padding: var(--spacing-xxl) var(--spacing-xl);
   display: flex;
@@ -325,4 +259,400 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
+}
+
+/* ==========================================
+   5. Feature: Dedicated Transaction Detail
+   ========================================== */
+
+.detailPage {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-primary);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+}
+
+.detailHeader {
+  padding: var(--spacing-xl) var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.backBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  transition: all var(--transition-fast);
+}
+
+.backBtn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.detailTitle {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.detailScrollArea {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+}
+
+/* 5a. Receipt Content */
+.receiptContentDetailed {
+  padding: var(--spacing-xl) 0;
+  margin-bottom: var(--spacing-xxl);
+}
+
+.receiptHeader {
+  display: flex;
+  flex-direction: column;
+  items-align: center;
+  text-align: center;
+  margin-bottom: var(--spacing-xxl);
+}
+
+.receiptAmount {
+  font-size: 2.5rem;
+  font-weight: 800;
+  font-family: var(--font-heading);
+  margin-bottom: var(--spacing-xs);
+}
+
+.receiptEntity {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.receiptDivider {
+  height: 1px;
+  background: var(--border-secondary);
+  margin: var(--spacing-xl) 0;
+  border: none;
+}
+
+/* 5b. Payment Progress Timeline */
+.timelineWrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.receiptStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.statusCompleted {
+  background: rgba(74, 222, 128, 0.1);
+  color: #4ade80;
+}
+
+.statusPending {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+}
+
+.timelineContainer {
+  margin: var(--spacing-md) 0 var(--spacing-xl);
+  padding: var(--spacing-lg);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-primary);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  position: relative;
+  width: 100%;
+}
+
+.timelineStep {
+  display: flex;
+  gap: var(--spacing-md);
+  position: relative;
+}
+
+.timelineIndicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.timelineDot {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  background: #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+  z-index: 2;
+}
+
+.timelineLine {
+  position: absolute;
+  top: 12px;
+  left: 5px;
+  width: 2px;
+  height: calc(100% + var(--spacing-lg) - 12px);
+  background: rgba(74, 222, 128, 0.2);
+  z-index: 1;
+}
+
+.timelineContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timelineLabel {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.timelineTime {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* 5c. Itemized Order Detail */
+.itemsSection {
+  text-align: left;
+  margin-bottom: var(--spacing-xl);
+}
+
+.itemsHeader {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--spacing-md);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.itemRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--spacing-md);
+}
+
+.itemInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.itemName {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.itemDetail {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.itemTotal {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.receiptTotalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px dashed var(--border-primary);
+}
+
+.totalLabel {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.totalValue {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--brand-accent);
+}
+
+/* 5d. Receipt Grid & Actions */
+.receiptGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xl);
+}
+
+.receiptRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rowLabel {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.rowValue {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.receiptActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
+.downloadBtn, .shareBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  transition: all var(--transition-fast);
+}
+
+.downloadBtn {
+  background: var(--brand-accent);
+  color: #000;
+}
+
+.downloadBtn:hover {
+  background: var(--brand-accent-hover);
+}
+
+.shareBtn {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+}
+
+.shareBtn:hover {
+  background: var(--bg-tertiary);
+}
+
+/* ==========================================
+   6. Navigation Overlay & BottomNav
+   ========================================== */
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  align-items: flex-end;
+  z-index: 1000;
+}
+
+.overlayContent {
+  background: var(--bg-primary);
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  padding: var(--spacing-xl) var(--spacing-lg);
+  animation: slideUp 0.3s ease-out;
+}
+
+.bottomNav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 72px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0 var(--spacing-md);
+  z-index: 1000;
+}
+
+@media (min-width: 501px) {
+  .bottomNav {
+    max-width: 500px;
+    margin: 0 auto;
+    border-left: 1px solid var(--glass-border);
+    border-right: 1px solid var(--glass-border);
+  }
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 0.625rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+}
+
+.navItemActive {
+  color: var(--brand-accent);
+}
+
+.navIconWrapper {
+  position: relative;
+  display: flex;
+  items-align: center;
+  justify-content: center;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
