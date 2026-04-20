@@ -8,10 +8,13 @@ import styles from './MerchantUI.module.css';
 export const PaymentAlert: React.FC = () => {
   const { state, resolveVerification } = useMerchant();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [entryAmount, setEntryAmount] = React.useState<number | ''>('');
 
   // Get all pending and focus on the latest one
   const pendingList = state.pendingVerifications?.filter(v => v.status === 'pending') || [];
   const activeItem = pendingList[pendingList.length - 1];
+
+  const isQuickPayOpen = activeItem?.type === 'quickpay' && activeItem?.amount === 0;
 
   useEffect(() => {
     if (activeItem && typeof Audio !== 'undefined') {
@@ -34,6 +37,22 @@ export const PaymentAlert: React.FC = () => {
       case 'POS': return <CreditCard size={24} color="#8b5cf6" />;
       case 'Cash': return <Banknote size={24} color="#22c55e" />;
       default: return <BellRing size={24} color="var(--brand-accent)" />;
+    }
+  };
+
+  const getLabel = () => {
+    if (activeItem.type === 'quickpay') return 'Quickpay';
+    return activeItem.type === 'check' ? `Check #${activeItem.targetId}` : `Invoice ${activeItem.targetId}`;
+  };
+
+  const handleConfirm = () => {
+    if (isQuickPayOpen) {
+      if (typeof entryAmount === 'number' && entryAmount > 0) {
+        resolveVerification(activeItem.id, true, entryAmount);
+        setEntryAmount('');
+      }
+    } else {
+      resolveVerification(activeItem.id, true);
     }
   };
 
@@ -79,12 +98,38 @@ export const PaymentAlert: React.FC = () => {
               </div>
               
               <div className={styles.bannerAmount}>
-                ₦{activeItem.amount.toLocaleString()}
+                {isQuickPayOpen ? 'Open Amount' : `₦${activeItem.amount.toLocaleString()}`}
               </div>
               
               <div className={styles.bannerDetail}>
-                {activeItem.method} via {activeItem.type === 'check' ? `Check #${activeItem.targetId}` : `Invoice ${activeItem.targetId}`}
+                {activeItem.method} via {getLabel()}
               </div>
+
+              {isQuickPayOpen && (
+                <div style={{ marginTop: '12px', marginBottom: '8px' }}>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-primary)' }}>₦</span>
+                    <input 
+                      type="number"
+                      placeholder="Enter amount"
+                      value={entryAmount}
+                      autoFocus
+                      onChange={(e) => setEntryAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '8px 8px 8px 24px',
+                        backgroundColor: 'rgba(255,255,255,0.05)',
+                        border: '1px solid var(--brand-accent)',
+                        borderRadius: '6px',
+                        color: 'var(--text-primary)',
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                        outline: 'none'
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className={styles.bannerActions}>
                 <Button 
@@ -100,8 +145,14 @@ export const PaymentAlert: React.FC = () => {
                   fullWidth 
                   size="small"
                   variant="primary" 
-                  style={{ backgroundColor: '#4ade80', color: '#000', border: 'none' }}
-                  onClick={() => resolveVerification(activeItem.id, true)}
+                  disabled={isQuickPayOpen && (!entryAmount || entryAmount <= 0)}
+                  style={{ 
+                    backgroundColor: isQuickPayOpen && (!entryAmount || entryAmount <= 0) ? 'var(--bg-tertiary)' : '#4ade80', 
+                    color: '#000', 
+                    border: 'none',
+                    opacity: isQuickPayOpen && (!entryAmount || entryAmount <= 0) ? 0.5 : 1
+                  }}
+                  onClick={handleConfirm}
                 >
                   <CheckCircle2 size={16} style={{ marginRight: '6px' }} /> Confirm
                 </Button>

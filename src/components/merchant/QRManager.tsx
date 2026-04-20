@@ -21,7 +21,7 @@ interface QRDisplayProps {
 
 const AestheticQR: React.FC<QRDisplayProps> = ({ id, label, type }) => {
   const deepLink = type === 'merchant' 
-    ? `${window.location.origin}/#/pay/merchant`
+    ? `${window.location.origin}/#/pay/quickpay`
     : `${window.location.origin}/#/check/${id}`;
 
   return (
@@ -99,7 +99,7 @@ export const QRManager: React.FC = () => {
       </header>
 
       <section style={{ marginBottom: 'var(--spacing-xxl)' }}>
-        <h3 style={{ marginBottom: 'var(--spacing-md)', fontSize: '1rem' }}>Merchant Quick Pay</h3>
+        <h3 style={{ marginBottom: 'var(--spacing-md)', fontSize: '1rem' }}>Quickpay</h3>
         <AestheticQR id="merchant-id" label={state.name} type="merchant" />
       </section>
 

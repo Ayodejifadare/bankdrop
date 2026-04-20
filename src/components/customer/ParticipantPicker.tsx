@@ -35,12 +35,13 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
     if (!check) return [];
     return check.orders.map((o, idx) => {
       const menuItem = merchant.menu.find(m => m.id === o.menuItemId);
+      const snapshotPrice = o.priceAtOrder || menuItem?.price || 0;
       return {
         index: idx,
         name: menuItem?.name || 'Unknown',
-        price: menuItem?.price || 0,
+        price: snapshotPrice,
         quantity: o.quantity,
-        total: (menuItem?.price || 0) * o.quantity,
+        total: snapshotPrice * o.quantity,
       };
     });
   }, [check, merchant.menu]);

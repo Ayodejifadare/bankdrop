@@ -24,7 +24,7 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
   const { activities, orderHistory, invoices, menu } = state;
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'check_payment' | 'invoice_payment'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'check_payment' | 'invoice_payment' | 'quickpay'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const formatDate = (dateString: string) => {
@@ -57,10 +57,11 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
 
   const getDetails = (activity: MerchantActivity) => {
     if (activity.type === 'check_payment') {
-      // Strict lookup: Match by unique order ID only to prevent item mismatch
       return orderHistory.find(oh => oh.id === activity.referenceId);
     } else if (activity.type === 'invoice_payment') {
       return invoices.find(inv => inv.id === activity.referenceId);
+    } else if (activity.type === 'quickpay') {
+      return { isQuickPay: true };
     }
     return null;
   };
@@ -88,39 +89,30 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
   return (
     <div className={styles.activityLedger}>
       <header className={styles.ledgerHeader}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button onClick={onBack} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}>
             <ArrowLeft size={24} />
           </button>
-          <h2 className={styles.title} style={{ fontSize: '1.5rem', margin: 0 }}>Transaction Ledger</h2>
+          <h2 className={styles.title} style={{ fontSize: '1.25rem', margin: 0 }}>Transaction Ledger</h2>
         </div>
 
         <div className={styles.searchFilterGroup}>
           <Input 
-            placeholder="Search by name, reference or amount..." 
+            placeholder="Search reference or amount..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             icon={<Search size={18} />}
           />
-          <div className={styles.filterScroll}>
-            <button 
-              className={`${styles.pill} ${activeFilter === 'all' ? styles.pillActive : ''}`}
-              onClick={() => setActiveFilter('all')}
-            >
-              All
-            </button>
-            <button 
-              className={`${styles.pill} ${activeFilter === 'check_payment' ? styles.pillActive : ''}`}
-              onClick={() => setActiveFilter('check_payment')}
-            >
-              Check
-            </button>
-            <button 
-              className={`${styles.pill} ${activeFilter === 'invoice_payment' ? styles.pillActive : ''}`}
-              onClick={() => setActiveFilter('invoice_payment')}
-            >
-              Invoice
-            </button>
+          <div className={styles.filterScroll} style={{ gap: '8px' }}>
+            {(['all', 'check_payment', 'invoice_payment', 'quickpay'] as const).map(f => (
+              <button 
+                key={f}
+                className={`${styles.pill} ${activeFilter === f ? styles.pillActive : ''}`}
+                onClick={() => setActiveFilter(f)}
+              >
+                {f.split('_')[0].charAt(0).toUpperCase() + f.split('_')[0].slice(1)}
+              </button>
+            ))}
           </div>
         </div>
       </header>
@@ -128,19 +120,20 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
       {filteredActivities.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
           <div style={{ 
-            width: '80px', 
-            height: '80px', 
+            width: '64px', 
+            height: '64px', 
             borderRadius: '50%', 
             backgroundColor: 'var(--bg-secondary)', 
             display: 'inline-flex', 
             alignItems: 'center', 
             justifyContent: 'center',
-            marginBottom: '20px'
+            marginBottom: '20px',
+            opacity: 0.5
           }}>
-            <Calendar size={40} style={{ opacity: 0.3 }} />
+            <Calendar size={32} />
           </div>
           <h3>No transactions found</h3>
-          <p>Try adjusting your search or filters.</p>
+          <p style={{ fontSize: '0.875rem' }}>Try adjusting your search or filters.</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
@@ -155,14 +148,14 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                 onClick={() => setExpandedId(isExpanded ? null : activity.id)}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{activity.title}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{activity.title}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                       {activity.subtitle} • {formatDate(activity.timestamp)}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ fontWeight: 700, color: '#4ade80' }}>
+                    <div style={{ fontWeight: 700, color: '#4ade80', fontSize: '1rem' }}>
                       +₦{activity.amount.toLocaleString()}
                     </div>
                   </div>
@@ -175,18 +168,23 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                       style={{ overflow: 'hidden' }}
-                      onClick={(e) => e.stopPropagation()} // Prevent card toggle when clicking details
+                      onClick={(e) => e.stopPropagation()} 
                     >
                       <div className={styles.detailSection}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                        <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '12px' }}>
                           Transaction Items
                         </div>
                         
                         {details ? (
                           <>
-                            {'orders' in details && details.orders ? (
-                              // Check Details
-                              details.orders.map((order, i) => {
+                            { 'isQuickPay' in details ? (
+                              <div style={{ padding: '16px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', marginBottom: '16px', textAlign: 'center' }}>
+                                <Package size={24} style={{ marginBottom: '8px', opacity: 0.5 }} />
+                                <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>Quickpay Transaction</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Standalone payment via terminal QR</div>
+                              </div>
+                            ) : 'orders' in details && details.orders ? (
+                              details.orders.map((order: any, i: number) => {
                                 const item = menu.find(m => m.id === order.menuItemId);
                                 return (
                                   <div key={i} className={styles.detailRow}>
@@ -199,8 +197,7 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                                 );
                               })
                             ) : 'items' in details && details.items ? (
-                              // Invoice Details
-                              details.items.map((item, i) => (
+                              details.items.map((item: any, i: number) => (
                                 <div key={i} className={styles.detailRow}>
                                   <div>
                                     <div className={styles.detailName}>{item.name}</div>
@@ -209,14 +206,10 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                                   <div className={styles.detailPrice}>₦{(item.price * item.quantity).toLocaleString()}</div>
                                 </div>
                               ))
-                            ) : (
-                              <div style={{ padding: '10px', textAlign: 'center', opacity: 0.5 }}>
-                                <p>Detailed items not found.</p>
-                              </div>
-                            )}
+                            ) : null}
 
                             <div className={styles.detailTotal}>
-                              <span>Total Amount</span>
+                              <span>Total Settled</span>
                               <span style={{ color: 'var(--brand-accent)' }}>₦{activity.amount.toLocaleString()}</span>
                             </div>
 
@@ -246,12 +239,17 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                                 <div style={{ borderBottom: '1px dashed #000', marginBottom: '10px' }} />
                                 <div style={{ marginBottom: '10px' }}>
                                   Ref: {activity.referenceId}<br />
+                                  Type: {activity.type === 'quickpay' ? 'Quickpay' : activity.type.split('_')[0].toUpperCase()}<br />
                                   Trans ID: {activity.id}<br />
                                   Date: {new Date(activity.timestamp).toLocaleString()}
                                 </div>
                                 <div style={{ borderBottom: '1px dashed #000', marginBottom: '10px' }} />
-                                {'orders' in details ? (
-                                  details.orders.map((o, i) => {
+                                { 'isQuickPay' in details ? (
+                                   <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                                      QUICKPAY TRANSACTION
+                                   </div>
+                                ) : 'orders' in details ? (
+                                  details.orders.map((o: any, i: number) => {
                                     const menuItem = menu.find(m => m.id === o.menuItemId);
                                     return (
                                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
@@ -261,8 +259,8 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                                     );
                                   })
                                 ) : (
-                                  details.items.map((item, i) => (
-                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                  details.items.map((item: any, j: number) => (
+                                    <div key={j} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                                       <span>{item.quantity} {item.name}</span>
                                       <span>₦{(item.price * item.quantity).toLocaleString()}</span>
                                     </div>

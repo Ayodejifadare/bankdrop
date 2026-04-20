@@ -18,7 +18,7 @@ interface Props {
 
 export const CartView: React.FC<Props> = ({ checkId, onPay, onSplit, onBack }) => {
   const { state: merchant } = useMerchant();
-  const { splitSession } = useCustomer();
+  const { splitSession, checkId: contextCheckId } = useCustomer();
   const { isAuthenticated } = useCustomerProfile();
 
   const check = merchant.checks.find(c => c.id === checkId);
@@ -30,11 +30,12 @@ export const CartView: React.FC<Props> = ({ checkId, onPay, onSplit, onBack }) =
     if (!check) return [];
     return check.orders.map(o => {
       const menuItem = merchant.menu.find(m => m.id === o.menuItemId);
+      const snapshotPrice = o.priceAtOrder || menuItem?.price || 0;
       return {
         name: menuItem?.name || 'Unknown',
-        price: menuItem?.price || 0,
+        price: snapshotPrice,
         quantity: o.quantity,
-        total: (menuItem?.price || 0) * o.quantity,
+        total: snapshotPrice * o.quantity,
       };
     });
   }, [check, merchant.menu]);
@@ -66,7 +67,7 @@ export const CartView: React.FC<Props> = ({ checkId, onPay, onSplit, onBack }) =
           <Landmark size={20} color="var(--brand-accent)" />
           <div>
             <div className={styles.merchantName}>{merchant.name}</div>
-            <div className={styles.checkLabel}>Check #{checkId}</div>
+            <div className={styles.checkLabel}>Check #{contextCheckId || checkId}</div>
           </div>
         </div>
       </div>

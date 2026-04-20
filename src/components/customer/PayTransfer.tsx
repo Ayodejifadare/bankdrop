@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
+import { useCustomer } from '../../context/CustomerContext';
 import { Button } from '../ui/Button';
 import { 
   Copy, 
@@ -17,45 +18,68 @@ import jsPDF from 'jspdf';
 import styles from './CustomerUI.module.css';
 
 interface Props {
-  checkId: string;
-  invoiceId?: string;
+  type: 'check' | 'invoice' | 'quickpay';
+  targetId: string;
   amount: number;
   onBack: () => void;
   onDone: () => void;
 }
 
-export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBack, onDone }) => {
+export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAmount, onBack, onDone }) => {
   const { state: merchant, requestVerification } = useMerchant();
+  const { sessionId, checkId: contextCheckId } = useCustomer();
   const receiptRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 min
-
+  const [localAmount, setLocalAmount] = useState(initialAmount);
 
   const bank = merchant.bankAccounts.find(acc => acc.isPrimary) || merchant.bankAccounts[0];
 
-  const isPaid = invoiceId 
-    ? merchant.invoices.find(i => i.id === invoiceId)?.status === 'paid'
-    : merchant.checks.find(c => c.id === checkId)?.status === 'paid';
+  const isArchived = type === 'check' && sessionId && merchant.archivedSessions[sessionId];
+  const archivedOrder = isArchived ? merchant.archivedSessions[sessionId!] : null;
+
+  const isPaid = type === 'invoice' 
+    ? merchant.invoices.find(i => i.id === targetId)?.status === 'paid'
+    : type === 'check'
+    ? (isArchived || merchant.checks.find(c => c.id === targetId)?.status === 'paid')
+    : false;
 
   const receiptItems = React.useMemo(() => {
-    if (invoiceId) {
-      const inv = merchant.invoices.find(i => i.id === invoiceId);
+    if (type === 'invoice') {
+      const inv = merchant.invoices.find(i => i.id === targetId);
       return inv?.items || [];
-    } else {
-      const chk = merchant.checks.find(c => c.id === checkId);
+    } else if (type === 'check') {
+      // Priority 1: Persistent Archived Session (Receipt)
+      if (archivedOrder) {
+        return archivedOrder.orders.map(o => {
+          const menuItem = merchant.menu.find(m => m.id === o.menuItemId);
+          const snapshotPrice = o.priceAtOrder || menuItem?.price || 0;
+          return {
+            id: o.menuItemId,
+            name: menuItem?.name || 'Unknown Item',
+            price: snapshotPrice,
+            quantity: o.quantity
+          };
+        });
+      }
+
+      // Priority 2: Current Active Check
+      const chk = merchant.checks.find(c => c.id === targetId);
       if (!chk) return [];
       return chk.orders.map(o => {
         const menuItem = merchant.menu.find(m => m.id === o.menuItemId);
+        const snapshotPrice = o.priceAtOrder || menuItem?.price || 0;
         return {
           id: o.menuItemId,
           name: menuItem?.name || 'Unknown Item',
-          price: menuItem?.price || 0,
+          price: snapshotPrice,
           quantity: o.quantity
         };
       });
     }
-  }, [merchant, invoiceId, checkId]);
+    return []; // Quickpay has no line items
+  }, [merchant, type, targetId, archivedOrder]);
 
   // Countdown
   useEffect(() => {
@@ -82,9 +106,9 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
 
   const handleConfirm = () => {
     requestVerification({
-      type: invoiceId ? 'invoice' : 'check',
-      targetId: invoiceId || checkId,
-      amount,
+      type: type,
+      targetId: targetId,
+      amount: localAmount,
       method: 'Transfer',
     });
     setConfirmed(true);
@@ -93,12 +117,9 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
   const handleDownloadReceipt = async () => {
     if (!receiptRef.current) return;
     try {
-      // Scale 3 ensures text is super crisp on the thermal PDF
       const canvas = await html2canvas(receiptRef.current, { scale: 3, useCORS: true, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/png');
-      
-      // Calculate dynamic PDF dimensions to precisely match the thermal receipt's proportions
-      const pdfWidth = 80; // 80mm standard wide thermal roll width
+      const pdfWidth = 80;
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       
       const pdf = new jsPDF({
@@ -108,13 +129,12 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
       });
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Receipt_${merchant.name.replace(/\s+/g, '_')}_${amount}.pdf`);
+      pdf.save(`Receipt_${merchant.name.replace(/\s+/g, '_')}_${localAmount}.pdf`);
     } catch (err) {
       console.error(err);
     }
   };
 
-  // ---- Post-Payment Linktree Join Page ----
   if (isPaid || confirmed) {
     return (
       <div className={styles.customerLayout}>
@@ -153,10 +173,9 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
               transition={{ delay: 0.3 }}
               style={{ color: 'var(--text-muted)', marginBottom: '8px' }}
             >
-              ₦{amount.toLocaleString()} to {merchant.name}
+              ₦{localAmount.toLocaleString()} to {merchant.name}
             </motion.p>
 
-            {/* Linktree-style Join Card */}
             <motion.div
               className={styles.joinCard}
               initial={{ opacity: 0, y: 20 }}
@@ -189,7 +208,6 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
               </div>
             </motion.div>
 
-            {/* Receipt mini */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -206,7 +224,7 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span>Amount</span><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>₦{amount.toLocaleString()}</span>
+                <span>Amount</span><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>₦{localAmount.toLocaleString()}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <span>Merchant</span><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{merchant.name}</span>
@@ -230,7 +248,6 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
           </div>
         </div>
 
-        {/* HIDDEN THERMAL RECEIPT FOR PDF (Off-screen component) */}
         <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
           <div 
             ref={receiptRef}
@@ -239,12 +256,12 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
               padding: '24px', 
               backgroundColor: '#ffffff', 
               color: '#000000',
-              fontFamily: 'monospace' // Classic Thermal aesthetic
+              fontFamily: 'monospace'
             }}
           >
             <div style={{ textAlign: 'center', margin: '0 0 16px 0' }}>
               <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: '0 0 8px 0', textTransform: 'uppercase' }}>{merchant.name}</h2>
-              <div style={{ fontSize: '12px', color: '#333' }}>Payment Receipt</div>
+              <div style={{ fontSize: '12px', color: '#333' }}>{type === 'quickpay' ? 'Quickpay Receipt' : 'Payment Receipt'}</div>
               <div style={{ fontSize: '12px', color: '#333' }}>{new Date().toLocaleString()}</div>
             </div>
             
@@ -260,7 +277,7 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
                   <div style={{ fontWeight: 'bold' }}>₦{(item.quantity * item.price).toLocaleString()}</div>
                 </div>
               )) : (
-                <div style={{ textAlign: 'center', color: '#666', fontSize: '12px' }}>Custom Checkout Payment</div>
+                <div style={{ textAlign: 'center', color: '#666', fontSize: '12px' }}>{type === 'quickpay' ? 'Quickpay Transaction' : 'Custom Checkout Payment'}</div>
               )}
             </div>
             
@@ -268,7 +285,7 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
             
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', marginTop: '8px' }}>
               <span>TOTAL</span>
-              <span>₦{amount.toLocaleString()}</span>
+              <span>₦{localAmount.toLocaleString()}</span>
             </div>
 
             <div style={{ textAlign: 'center', marginTop: '32px', fontSize: '12px', fontStyle: 'italic', fontWeight: 'bold' }}>
@@ -283,28 +300,75 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
     );
   }
 
+  const getHeaderLabel = () => {
+    switch (type) {
+      case 'invoice': return 'Invoice Payment';
+      case 'quickpay': return 'Quickpay';
+      default: return 'Pay with Transfer';
+    }
+  };
 
+  const getSubLabel = () => {
+    switch (type) {
+      case 'invoice': return `Inv #${targetId}`;
+      case 'quickpay': return 'Direct Payment';
+      default: return `Check #${contextCheckId || targetId}`;
+    }
+  };
 
-  // ---- Transfer Details Screen ----
   return (
     <div className={styles.customerLayout}>
       <div className={styles.checkoutHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button className={styles.backBtn} onClick={onBack}><ArrowLeft size={20} /></button>
           <div>
-            <div className={styles.merchantName}>{invoiceId ? 'Invoice Payment' : 'Pay with Transfer'}</div>
-            <div className={styles.checkLabel}>{invoiceId ? `Inv #${invoiceId}` : `Check #${checkId}`}</div>
+            <div className={styles.merchantName}>{merchant.name}</div>
+            <div className={styles.checkLabel}>{getSubLabel()}</div>
           </div>
         </div>
       </div>
 
       <div className={styles.cartBody}>
         <div className={styles.transferCard}>
-          <div className={styles.transferAmount}>₦{amount.toLocaleString()}</div>
-          <div className={styles.transferSubtext}>Transfer this exact amount to</div>
+          {type === 'quickpay' ? (
+            <div className={styles.transferAmount} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+               <span>₦</span>
+               <input 
+                 type="text"
+                 inputMode="numeric"
+                 placeholder="0"
+                 value={localAmount ? localAmount.toLocaleString() : ''}
+                 onChange={(e) => {
+                   const val = e.target.value.replace(/,/g, '');
+                   if (val === '') {
+                     setLocalAmount(0);
+                   } else {
+                     const num = parseInt(val);
+                     if (!isNaN(num)) setLocalAmount(num);
+                   }
+                 }}
+                 style={{
+                   font: 'inherit',
+                   color: 'inherit',
+                   background: 'none',
+                   border: 'none',
+                   width: `${Math.max(1, (localAmount ? localAmount.toLocaleString() : '').length)}ch`,
+                   outline: 'none',
+                   textAlign: 'left',
+                   padding: 0,
+                   margin: 0
+                 }}
+               />
+            </div>
+          ) : (
+            <div className={styles.transferAmount}>₦{localAmount.toLocaleString()}</div>
+          )}
+          <div className={styles.transferSubtext}>
+            {type === 'quickpay' ? 'Enter amount and transfer to' : 'Transfer this exact amount to'}
+          </div>
 
           {bank ? (
-            <div>
+            <div style={{ marginTop: '24px' }}>
               <div className={styles.bankDetail}>
                 <span className={styles.bankDetailLabel}>Bank</span>
                 <span className={styles.bankDetailValue}>{bank.bankName}</span>
@@ -328,7 +392,7 @@ export const PayTransfer: React.FC<Props> = ({ checkId, invoiceId, amount, onBac
               </div>
             </div>
           ) : (
-            <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>
+            <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '24px' }}>
               Merchant has not linked a bank account yet.
             </p>
           )}

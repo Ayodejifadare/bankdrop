@@ -3,13 +3,15 @@ import { Navbar } from './components/layout/Navbar';
 import { Card } from './components/ui/Card';
 import { Button } from './components/ui/Button';
 import { LoadingScreen } from './components/ui/LoadingScreen';
+import { useMerchant } from './context/MerchantContext';
+import { useCustomer } from './context/CustomerContext';
+import { CustomerProfileProvider } from './context/CustomerProfileContext';
 
+// Lazy load the main applications
 // Lazy load the main applications
 const MerchantApp = lazy(() => import('./components/merchant/MerchantApp'));
 const CustomerApp = lazy(() => import('./components/customer/CustomerApp'));
 const CustomerProfileApp = lazy(() => import('./components/profile/CustomerProfileApp'));
-
-import { CustomerProfileProvider } from './context/CustomerProfileContext';
 import { 
   CreditCard, 
   ArrowUpRight, 
@@ -24,16 +26,25 @@ import styles from './App.module.css';
 
 type AppView = 'landing' | 'merchant' | 'customer' | 'profile';
 
-function parseHash(): { view: AppView; checkId?: string; invoiceId?: string } {
+type CustomerPaymentType = 'check' | 'invoice' | 'quickpay';
+
+function parseHash(): { view: AppView; type?: CustomerPaymentType; targetId?: string } {
   const hash = window.location.hash;
   
   // #/check/3
   const checkMatch = hash.match(/^#\/check\/([\w-]+)$/);
-  if (checkMatch) return { view: 'customer', checkId: checkMatch[1] };
+  if (checkMatch) return { view: 'customer', type: 'check', targetId: checkMatch[1] };
+
+  // #/session/SESS_123 (Unique hardened session ID)
+  const sessionMatch = hash.match(/^#\/session\/([\w-]+)$/);
+  if (sessionMatch) return { view: 'customer', type: 'check', targetId: sessionMatch[1] };
+
+  // #/pay/quickpay
+  if (hash === '#/pay/quickpay') return { view: 'customer', type: 'quickpay', targetId: 'merchant' };
 
   // #/pay/INV-1234
   const invoiceMatch = hash.match(/^#\/pay\/([\w-]+)$/);
-  if (invoiceMatch) return { view: 'customer', invoiceId: invoiceMatch[1] };
+  if (invoiceMatch) return { view: 'customer', type: 'invoice', targetId: invoiceMatch[1] };
 
   if (hash === '#/merchant') return { view: 'merchant' };
   if (hash === '#/profile') return { view: 'profile' };
@@ -42,12 +53,44 @@ function parseHash(): { view: AppView; checkId?: string; invoiceId?: string } {
 
 const App: React.FC = () => {
   const [route, setRoute] = useState(parseHash);
+  const { state: merchant } = useMerchant();
+  const { setSessionId, setCheckId } = useCustomer();
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
-    const onHash = () => setRoute(parseHash());
+    const onHash = () => {
+      setRoute(parseHash());
+      setIsRedirecting(false);
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
+
+  // URL Hardening: Redirect static #/check/1 to unique #/session/SESS_abc
+  useEffect(() => {
+    if (route.view === 'customer' && route.type === 'check') {
+      const checkIdOrSession = route.targetId;
+      if (!checkIdOrSession || checkIdOrSession.startsWith('SESS_')) return;
+
+      // Logic to resolve session before rendering child
+      const check = merchant.checks.find(c => c.id === checkIdOrSession);
+      if (!check) return;
+
+      let activeSession = check.sessionId;
+      const cachedSession = localStorage.getItem(`last_session_check_${checkIdOrSession}`);
+      
+      if (cachedSession && (activeSession === cachedSession || check.status === 'open')) {
+        activeSession = cachedSession;
+      }
+
+      if (activeSession) {
+        setIsRedirecting(true);
+        setSessionId(activeSession);
+        setCheckId(checkIdOrSession);
+        window.location.hash = `#/session/${activeSession}`;
+      }
+    }
+  }, [route, merchant.checks, setSessionId, setCheckId]);
 
   const navigate = (hash: string) => {
     window.location.hash = hash;
@@ -84,13 +127,15 @@ const App: React.FC = () => {
   }
 
   // ---- Customer Checkout ----
-  if (route.view === 'customer' && (route.checkId || route.invoiceId)) {
+  if (route.view === 'customer' && route.type) {
+    if (isRedirecting) return <LoadingScreen />;
+    
     return (
       <CustomerProfileProvider>
         <Suspense fallback={<LoadingScreen />}>
           <CustomerApp
-            checkId={route.checkId || ''}
-            invoiceId={route.invoiceId}
+            type={route.type}
+            targetId={route.targetId}
             onExit={() => navigate('')}
           />
         </Suspense>

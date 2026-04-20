@@ -19,6 +19,7 @@ export interface BankAccount {
 export interface OrderItem {
   menuItemId: string;
   quantity: number;
+  priceAtOrder: number;
 }
 
 export interface InvoiceItem {
@@ -58,6 +59,7 @@ export interface Check {
   status: 'open' | 'active' | 'paid';
   orders: OrderItem[];
   total: number;
+  sessionId?: string;
 }
 
 export interface Reward {
@@ -72,7 +74,7 @@ export interface Reward {
 
 export interface PendingVerification {
   id: string;
-  type: 'check' | 'invoice';
+  type: 'check' | 'invoice' | 'quickpay';
   targetId: string;
   amount: number;
   method: 'Transfer' | 'POS' | 'Cash';
@@ -82,7 +84,7 @@ export interface PendingVerification {
 
 export interface MerchantActivity {
   id: string;
-  type: 'check_payment' | 'invoice_payment';
+  type: 'check_payment' | 'invoice_payment' | 'quickpay';
   amount: number;
   referenceId: string;
   title: string;
@@ -110,4 +112,5 @@ export interface MerchantState {
   pendingVerifications: PendingVerification[];
   activities: MerchantActivity[];
   orderHistory: PastOrder[];
+  archivedSessions: { [sessionId: string]: PastOrder }; // Store sessions by ID for receipt persistence
 }

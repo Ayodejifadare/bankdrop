@@ -41,7 +41,7 @@ interface MerchantContextType {
   updateInvoice: (invoice: Invoice) => void;
   updateInvoiceStatus: (id: string, status: Invoice['status']) => void;
   requestVerification: (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => void;
-  resolveVerification: (id: string, confirmed: boolean) => void;
+  resolveVerification: (id: string, confirmed: boolean, confirmedAmount?: number) => void;
   resetCheck: (id: string) => void;
 }
 
@@ -49,6 +49,10 @@ const MerchantContext = createContext<MerchantContextType | undefined>(undefined
 
 // Hardened ID generator to prevent collisions
 const genId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+const MAX_ARCHIVED_SESSIONS = 50;
+const MAX_ORDER_HISTORY = 100;
+const MAX_ACTIVITIES = 150;
 
 const DEFAULT_STATE: MerchantState = {
   name: "Bankdrop Grill",
@@ -93,6 +97,7 @@ const DEFAULT_STATE: MerchantState = {
     }
   ],
   orderHistory: [],
+  archivedSessions: {},
 };
 
 export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -117,7 +122,8 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ...DEFAULT_STATE, 
         ...parsed, 
         activities: parsed.activities || DEFAULT_STATE.activities,
-        orderHistory: parsed.orderHistory || DEFAULT_STATE.orderHistory
+        orderHistory: parsed.orderHistory || DEFAULT_STATE.orderHistory,
+        archivedSessions: parsed.archivedSessions || DEFAULT_STATE.archivedSessions
       };
     }
     return { ...DEFAULT_STATE };
@@ -254,6 +260,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Centralized helper for archiving checks
   const _archiveCheckState = (checkId: string, check: Check, source: string) => {
     const pastOrderId = genId('ord');
+    const sessionId = check.sessionId || genId('SESS');
     const timestamp = new Date().toISOString();
 
     const pastOrder: PastOrder = {
@@ -268,13 +275,49 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       id: genId('act'),
       type: 'check_payment',
       amount: check.total,
-      referenceId: pastOrderId,
+      referenceId: sessionId, // Use sessionId as reference for customers to find their receipt
       title: `Check #${checkId}`,
       subtitle: source,
       timestamp
     };
 
-    return { pastOrder, activity };
+    return { pastOrder, activity, sessionId };
+  };
+
+  // Helper to keep state small for LocalStorage
+  const _pruneState = (state: MerchantState): MerchantState => {
+    let { activities, orderHistory, archivedSessions } = state;
+
+    if (activities.length > MAX_ACTIVITIES) {
+      activities = activities.slice(0, MAX_ACTIVITIES);
+    }
+
+    if (orderHistory.length > MAX_ORDER_HISTORY) {
+      orderHistory = orderHistory.slice(0, MAX_ORDER_HISTORY);
+    }
+
+    const sessionKeys = Object.keys(archivedSessions);
+    if (sessionKeys.length > MAX_ARCHIVED_SESSIONS) {
+      // Sort keys by session ID or timestamp if available (genId is partially chronological)
+      // For now, simple FIFO based on key count
+      const keysToRemove = sessionKeys.slice(0, sessionKeys.length - MAX_ARCHIVED_SESSIONS);
+      const newArchived = { ...archivedSessions };
+      keysToRemove.forEach(k => delete newArchived[k]);
+      archivedSessions = newArchived;
+    }
+
+    return { ...state, activities, orderHistory, archivedSessions };
+  };
+
+  const _addActivity = (activities: MerchantActivity[], newAct: MerchantActivity): MerchantActivity[] => {
+    // Only guard if referenceId exists (demo activities might not have one)
+    if (newAct.referenceId) {
+      const isDuplicate = activities.some(a => 
+        a.referenceId === newAct.referenceId && a.type === newAct.type
+      );
+      if (isDuplicate) return activities;
+    }
+    return [newAct, ...activities];
   };
 
   const updateCheckStatus = (id: string, status: 'open' | 'active' | 'paid') => {
@@ -286,12 +329,22 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (status === 'paid') {
         const check = prev.checks.find(c => c.id === id);
         if (check && check.total > 0) {
-          const { pastOrder, activity } = _archiveCheckState(id, check, 'Paid and settled');
+          const { pastOrder, activity, sessionId } = _archiveCheckState(id, check, 'Paid and settled');
           newOrderHistory.unshift(pastOrder);
-          newActivities.unshift(activity);
-          newChecks = newChecks.map(c => 
-            c.id === id ? { ...c, status: 'open', orders: [], total: 0 } : c
-          );
+          const finalActivities = _addActivity(prev.activities, activity);
+          
+          return _pruneState({
+            ...prev,
+            checks: prev.checks.map(c => 
+              c.id === id ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c
+            ),
+            activities: finalActivities,
+            orderHistory: newOrderHistory,
+            archivedSessions: {
+              ...prev.archivedSessions,
+              [sessionId]: pastOrder
+            }
+          });
         }
       } else {
         newChecks = newChecks.map(c => c.id === id ? { ...c, status } : c);
@@ -324,21 +377,26 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               const existingOrderIndex = newOrders.findIndex(o => o.menuItemId === item.menuItemId);
               
               if (existingOrderIndex >= 0) {
+                // If adding more of an existing item, we preserve the original priceAtOrder
+                // but we could also update it if the user wants. 
+                // For now, we preserve the price at which the FIRST instance was ordered.
                 newOrders[existingOrderIndex] = {
                   ...newOrders[existingOrderIndex],
                   quantity: newOrders[existingOrderIndex].quantity + item.quantity
                 };
+                totalDelta += newOrders[existingOrderIndex].priceAtOrder * item.quantity;
               } else {
-                newOrders.push(item);
+                newOrders.push({ ...item, priceAtOrder: item.priceAtOrder || menuPrice });
+                totalDelta += (item.priceAtOrder || menuPrice) * item.quantity;
               }
-              totalDelta += menuPrice * item.quantity;
             });
 
             return {
               ...c,
               status: 'active',
               orders: newOrders,
-              total: c.total + totalDelta
+              total: c.total + totalDelta,
+              sessionId: c.sessionId || genId('SESS')
             };
           }
           return c;
@@ -361,18 +419,19 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             let finalTotalDelta = 0;
 
             if (existingOrderIndex >= 0) {
-              const currentQty = newOrders[existingOrderIndex].quantity;
+              const orderItem = newOrders[existingOrderIndex];
+              const currentQty = orderItem.quantity;
               const newQty = Math.max(0, currentQty + quantityDelta);
               
               if (newQty === 0) {
                 newOrders.splice(existingOrderIndex, 1);
-                finalTotalDelta = -(menuPrice * currentQty);
+                finalTotalDelta = -(orderItem.priceAtOrder * currentQty);
               } else {
-                newOrders[existingOrderIndex] = { ...newOrders[existingOrderIndex], quantity: newQty };
-                finalTotalDelta = menuPrice * quantityDelta;
+                newOrders[existingOrderIndex] = { ...orderItem, quantity: newQty };
+                finalTotalDelta = orderItem.priceAtOrder * quantityDelta;
               }
             } else if (quantityDelta > 0) {
-              newOrders.push({ menuItemId, quantity: quantityDelta });
+              newOrders.push({ menuItemId, quantity: quantityDelta, priceAtOrder: menuPrice });
               finalTotalDelta = menuPrice * quantityDelta;
             }
 
@@ -421,13 +480,13 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }));
   };
 
-  const updateInvoiceStatus = (id: string, status: Invoice['status']) => {
+   const updateInvoiceStatus = (id: string, status: Invoice['status']) => {
     setState(prev => {
-      const newActivities = [...prev.activities];
+      let newActivities = [...prev.activities];
       if (status === 'paid') {
         const invoice = prev.invoices.find(c => c.id === id);
         if (invoice && invoice.total > 0) {
-          newActivities.unshift({
+          const activity: MerchantActivity = {
             id: genId('act'),
             type: 'invoice_payment',
             amount: invoice.total,
@@ -435,14 +494,15 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             title: `Invoice ${id}`,
             subtitle: `Paid by ${invoice.customerName}`,
             timestamp: new Date().toISOString()
-          });
+          };
+          newActivities = _addActivity(prev.activities, activity);
         }
       }
-      return {
+      return _pruneState({
         ...prev,
         invoices: prev.invoices.map(inv => inv.id === id ? { ...inv, status } : inv),
         activities: newActivities
-      };
+      });
     });
   };
 
@@ -471,12 +531,12 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setState(prev => ({
       ...prev,
       checks: prev.checks.map(c => 
-        c.id === id ? { ...c, status: 'open', orders: [], total: 0 } : c
+        c.id === id ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c
       )
     }));
   };
 
-  const resolveVerification = (id: string, confirmed: boolean) => {
+  const resolveVerification = (id: string, confirmed: boolean, confirmedAmount?: number) => {
     setState(prev => {
       const verifications = prev.pendingVerifications || [];
       const index = verifications.findIndex(v => v.id === id);
@@ -487,7 +547,7 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       newVerifications[index] = { ...verification, status: confirmed ? 'confirmed' : 'declined' };
 
       const newState = { ...prev, pendingVerifications: newVerifications };
-      const newActivities = [...prev.activities];
+      let newActivities = [...prev.activities];
       const newOrderHistory = [...prev.orderHistory];
 
       if (confirmed) {
@@ -496,33 +556,55 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           const check = prev.checks.find(c => c.id === checkId);
           
           if (check && check.orders.length > 0) {
-            const { pastOrder, activity } = _archiveCheckState(checkId, check, 'Paid and settled (Remote)');
+            const { pastOrder, activity, sessionId } = _archiveCheckState(checkId, check, 'Paid and settled (Remote)');
             newOrderHistory.unshift(pastOrder);
-            newActivities.unshift(activity);
+            newActivities = _addActivity(prev.activities, activity);
 
             newState.checks = newState.checks.map(c => 
-              c.id === checkId ? { ...c, status: 'open', orders: [], total: 0 } : c
+              c.id === checkId ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c
             );
+            newState.archivedSessions = {
+              ...prev.archivedSessions,
+              [sessionId]: pastOrder
+            };
+            
+            return _pruneState({
+              ...newState,
+              activities: newActivities,
+              orderHistory: newOrderHistory
+            });
           }
         } else if (verification.type === 'invoice') {
           newState.invoices = newState.invoices.map(inv => 
             inv.id === verification.targetId ? { ...inv, status: 'paid' } : inv
           );
           const inv = prev.invoices.find(i => i.id === verification.targetId);
-          newActivities.unshift({
+          const activity: MerchantActivity = {
             id: genId('act'),
             type: 'invoice_payment',
-            amount: verification.amount,
+            amount: confirmedAmount || verification.amount,
             referenceId: verification.targetId,
             title: `Invoice ${verification.targetId}`,
             subtitle: inv ? `Paid by ${inv.customerName}` : 'Verified remote payment',
             timestamp: new Date().toISOString()
-          });
+          };
+          newActivities = _addActivity(prev.activities, activity);
+        } else if (verification.type === 'quickpay') {
+          const activity: MerchantActivity = {
+            id: genId('act'),
+            type: 'quickpay',
+            amount: confirmedAmount || verification.amount,
+            referenceId: verification.targetId || verification.id, // Ensure unique reference
+            title: 'Quickpay',
+            subtitle: 'Received via QR Terminal',
+            timestamp: new Date().toISOString()
+          };
+          newActivities = _addActivity(prev.activities, activity);
         }
       }
       newState.activities = newActivities;
       newState.orderHistory = newOrderHistory;
-      return newState;
+      return _pruneState(newState);
     });
   };
 

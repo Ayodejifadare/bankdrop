@@ -3,11 +3,13 @@ import type { SplitSession, Participant, SplitMethod } from '../types/checkout';
 
 interface CustomerContextType {
   checkId: string | null;
+  sessionId: string | null;
   splitSession: SplitSession | null;
   participantId: string;
   isSignedIn: boolean;
   appliedRewardId: string | null;
   setCheckId: (id: string | null) => void;
+  setSessionId: (id: string | null) => void;
   setSignedIn: (v: boolean) => void;
   applyReward: (id: string | null) => void;
   createSplitSession: (checkId: string, method: SplitMethod) => SplitSession;
@@ -37,6 +39,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
 
   const [checkId, setCheckId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [splitSession, setSplitSession] = useState<SplitSession | null>(null);
   const [isSignedIn, setSignedIn] = useState(false);
   const [appliedRewardId, setAppliedRewardId] = useState<string | null>(null);
@@ -50,10 +53,10 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [syncError]);
 
-  // Load split session from localStorage when checkId changes
+  // Load split session from localStorage when sessionId changes
   useEffect(() => {
-    if (checkId) {
-      const saved = localStorage.getItem(`check_split_${checkId}`);
+    if (sessionId) {
+      const saved = localStorage.getItem(`check_split_${sessionId}`);
       if (saved) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setSplitSession(JSON.parse(saved));
@@ -61,25 +64,26 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setSplitSession(null);
       }
     }
-  }, [checkId]);
+  }, [sessionId]);
 
   // LIVE SYNC: Listen for storage events from other tabs to keep multiplayer state in sync
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (checkId && e.key === `check_split_${checkId}` && e.newValue) {
+      if (sessionId && e.key === `check_split_${sessionId}` && e.newValue) {
         setSplitSession(JSON.parse(e.newValue));
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [checkId]);
+  }, [sessionId]);
 
   // Persist split session changes
   const persistSession = useCallback((session: SplitSession) => {
-    localStorage.setItem(`check_split_${session.checkId}`, JSON.stringify(session));
+    const keyId = sessionId || session.checkId;
+    localStorage.setItem(`check_split_${keyId}`, JSON.stringify(session));
     setSplitSession(session);
-  }, []);
+  }, [sessionId]);
 
   const createSplitSession = useCallback((cId: string, method: SplitMethod): SplitSession => {
     const session: SplitSession = {
@@ -119,12 +123,13 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [participantId, persistSession]);
 
   const updateParticipant = useCallback((_sessionId: string, updated: Participant) => {
-    const saved = localStorage.getItem(`check_split_${checkId}`);
+    const keyId = sessionId || checkId;
+    const saved = localStorage.getItem(`check_split_${keyId}`);
     if (!saved) return;
     const session: SplitSession = JSON.parse(saved);
     session.participants = session.participants.map(p => p.id === updated.id ? updated : p);
     persistSession(session);
-  }, [checkId, persistSession]);
+  }, [sessionId, checkId, persistSession]);
 
   const changeSplitMethod = useCallback((method: SplitMethod) => {
     if (!splitSession) return;
@@ -152,9 +157,8 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // 3. Background Persistence (Simulated)
     try {
       // Small artificial delay to show the "snap"
-      await new Promise(r => setTimeout(r, 400));
-      
-      localStorage.setItem(`check_split_${splitSession.checkId}`, JSON.stringify(optimisticSession));
+      const keyId = sessionId || splitSession.checkId;
+      localStorage.setItem(`check_split_${keyId}`, JSON.stringify(optimisticSession));
     } catch {
       console.error('Persistence failed, rolling back');
       // Rollback!
@@ -178,8 +182,8 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setSplitSession(optimisticSession);
     
     try {
-      await new Promise(r => setTimeout(r, 400));
-      localStorage.setItem(`check_split_${splitSession.checkId}`, JSON.stringify(optimisticSession));
+      const keyId = sessionId || splitSession.checkId;
+      localStorage.setItem(`check_split_${keyId}`, JSON.stringify(optimisticSession));
     } catch {
       setSplitSession(previousSession);
       setSyncError('Failed to remove reward. Please try again.');
@@ -204,8 +208,8 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   return (
     <CustomerContext.Provider value={{
-      checkId, splitSession, participantId, isSignedIn, appliedRewardId,
-      setCheckId, setSignedIn, applyReward: setAppliedRewardId,
+      checkId, sessionId, splitSession, participantId, isSignedIn, appliedRewardId,
+      setCheckId, setSessionId, setSignedIn, applyReward: setAppliedRewardId,
       createSplitSession, joinSplitSession, updateParticipant,
       changeSplitMethod, applySessionReward, removeSessionReward, markPaid, clearSession,
       syncError

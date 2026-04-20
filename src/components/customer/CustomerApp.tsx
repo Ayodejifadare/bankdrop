@@ -10,14 +10,14 @@ import { PayTransfer } from './PayTransfer';
 type Screen = 'cart' | 'split' | 'pick' | 'pay';
 
 interface Props {
-  checkId: string;
-  invoiceId?: string;
+  type: 'check' | 'invoice' | 'quickpay';
+  targetId: string;
   onExit: () => void;
 }
 
-export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => {
+export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
   const { state: merchant } = useMerchant();
-  const { setCheckId, splitSession, joinSplitSession, clearSession, removeSessionReward, participantId } = useCustomer();
+  const { setCheckId, sessionId, setSessionId, splitSession, joinSplitSession, clearSession, removeSessionReward, participantId } = useCustomer();
   const { isAuthenticated, user } = useCustomerProfile();
   const [screen, setScreen] = useState<Screen>('cart');
   const [payAmount, setPayAmount] = useState(0);
@@ -26,7 +26,6 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
   // Logout / Session Protection
   useEffect(() => {
     if (!isAuthenticated && splitSession?.appliedBy) {
-      // If we log out and we were the ones who applied the reward, remove it
       const myName = user?.name || `Guest ${participantId.slice(0, 3)}`;
       if (splitSession.appliedBy === myName) {
         removeSessionReward();
@@ -36,9 +35,15 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
 
   // Robust Screen Logic
   useEffect(() => {
-    // Priority 0: Handle Invoice Paylinks
-    if (invoiceId) {
-      const invoice = merchant.invoices.find(inv => inv.id === invoiceId);
+    if (type === 'quickpay') {
+      setPayAmount(0);
+      setScreen('pay');
+      setIsInitialized(true);
+      return;
+    }
+
+    if (type === 'invoice') {
+      const invoice = merchant.invoices.find(inv => inv.id === targetId);
       if (invoice) {
         setPayAmount(invoice.total);
         setScreen('pay');
@@ -47,36 +52,72 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
       }
     }
 
-    setCheckId(checkId);
-    
-    const check = merchant.checks.find(c => c.id === checkId);
-    if (!check) return;
+    if (type === 'check') {
+      const checkIdOrSession = targetId;
+      const isDirectSession = checkIdOrSession.startsWith('SESS_');
+      
+      if (isDirectSession) {
+        setSessionId(checkIdOrSession);
+        
+        // Resolve the human-readable Check ID from archives if possible
+        const archived = merchant.archivedSessions[checkIdOrSession];
+        if (archived) {
+          setCheckId(archived.checkId);
+        } else {
+          // Check if it's an active check session
+          const activeCheck = merchant.checks.find(c => c.sessionId === checkIdOrSession);
+          if (activeCheck) setCheckId(activeCheck.id);
+        }
 
-    // 1. Check if check is already PAID
-    if (check.status === 'paid') {
-      setScreen('pay');
-      setPayAmount(check.total);
+        setScreen('pay');
+        setIsInitialized(true);
+        return;
+      }
+
+      // It's a check ID (e.g. "1")
+      setCheckId(checkIdOrSession);
+      
+      const check = merchant.checks.find(c => c.id === checkIdOrSession);
+      if (!check) return;
+
+      // Session Lock-in Logic
+      let activeSession = check.sessionId;
+      const cachedSession = localStorage.getItem(`last_session_check_${checkIdOrSession}`);
+      
+      // If we have a cached session and it's either the current active one OR the check was recently paid
+      // we stay on that session to show the receipt or the current order.
+      if (cachedSession && (activeSession === cachedSession || check.status === 'open')) {
+        activeSession = cachedSession;
+      }
+
+      if (activeSession) {
+        setSessionId(activeSession);
+        localStorage.setItem(`last_session_check_${checkIdOrSession}`, activeSession);
+      }
+
+      if (check.status === 'paid' && !activeSession) {
+        setScreen('pay');
+        setPayAmount(check.total);
+        setIsInitialized(true);
+        return;
+      }
+
+      if (check.status === 'open' && !activeSession) {
+        clearSession(checkIdOrSession);
+        setScreen('cart');
+        setIsInitialized(true);
+        return;
+      }
+
+      const savedSplit = localStorage.getItem(`check_split_${activeSession || checkIdOrSession}`);
+      if (savedSplit && !isInitialized) {
+        joinSplitSession(activeSession || checkIdOrSession);
+        setScreen('pick');
+      }
+      
       setIsInitialized(true);
-      return;
     }
-
-    // 2. If check is empty/open, always clear any ghost session and show cart
-    if (check.status === 'open') {
-      clearSession(checkId);
-      setScreen('cart');
-      setIsInitialized(true);
-      return;
-    }
-
-    // 3. If check is active, see if a split session already exists
-    const savedSplit = localStorage.getItem(`check_split_${checkId}`);
-    if (savedSplit && !isInitialized) {
-      joinSplitSession(checkId);
-      setScreen('pick');
-    }
-    
-    setIsInitialized(true);
-  }, [checkId, invoiceId, merchant.invoices, merchant.checks, setCheckId, joinSplitSession, clearSession, isInitialized]);
+  }, [type, targetId, merchant.invoices, merchant.checks, setCheckId, joinSplitSession, clearSession, isInitialized]);
 
   if (!isInitialized) return null;
 
@@ -84,7 +125,7 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
     case 'cart':
       return (
         <CartView
-          checkId={checkId}
+          checkId={targetId}
           onPay={(amount) => { setPayAmount(amount); setScreen('pay'); }}
           onSplit={() => setScreen('split')}
           onBack={onExit}
@@ -94,7 +135,7 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
     case 'split':
       return (
         <SplitSession
-          checkId={checkId}
+          checkId={targetId}
           onPayShare={(amount) => { setPayAmount(amount); setScreen('pay'); }}
           onPickItems={() => setScreen('pick')}
           onBack={() => setScreen('cart')}
@@ -104,7 +145,7 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
     case 'pick':
       return (
         <ParticipantPicker
-          checkId={checkId}
+          checkId={targetId}
           onPay={(amount) => { setPayAmount(amount); setScreen('pay'); }}
           onBack={() => setScreen('split')}
         />
@@ -113,10 +154,10 @@ export const CustomerApp: React.FC<Props> = ({ checkId, invoiceId, onExit }) => 
     case 'pay':
       return (
         <PayTransfer
-          checkId={checkId}
-          invoiceId={invoiceId}
+          type={type}
+          targetId={targetId}
           amount={payAmount}
-          onBack={invoiceId ? onExit : () => setScreen('cart')}
+          onBack={type !== 'check' ? onExit : () => setScreen('cart')}
           onDone={onExit}
         />
       );

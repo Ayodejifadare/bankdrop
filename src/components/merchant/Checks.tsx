@@ -217,6 +217,7 @@ export const CheckManager: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-xl)' }}>
                   {selectedCheck?.orders.map((order, idx) => {
                     const item = state.menu.find(m => m.id === order.menuItemId);
+                    const snapshotPrice = order.priceAtOrder || item?.price || 0;
                     return (
                       <div key={idx} className={styles.orderRow}>
                         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -235,13 +236,13 @@ export const CheckManager: React.FC = () => {
                           <div className={styles.orderInfo}>
                             <span className={styles.orderTitle}>{item?.name}</span>
                             <span className={styles.orderSubtitle}>
-                              ₦{item?.price.toLocaleString()}
+                              ₦{snapshotPrice.toLocaleString()}
                               {item?.type === 'subscription' && ` / ${item.billingCycle}`}
                             </span>
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                          <span style={{ fontWeight: 600 }}>₦{((item?.price || 0) * order.quantity).toLocaleString()}</span>
+                          <span style={{ fontWeight: 600 }}>₦{(snapshotPrice * order.quantity).toLocaleString()}</span>
                           {selectedCheck.status === 'active' && (
                             <QuantityStepper 
                               value={order.quantity} 
@@ -315,10 +316,11 @@ export const CheckManager: React.FC = () => {
                               <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed var(--border-subtle)' }}>
                                 {historyOrder.orders.map((o, i) => {
                                   const menuItem = state.menu.find(m => m.id === o.menuItemId);
+                                  const snapshotPrice = o.priceAtOrder || menuItem?.price || 0;
                                   return (
                                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.875rem' }}>
                                       <span>{o.quantity}x {menuItem?.name || 'Item'}</span>
-                                      <span style={{ opacity: 0.7 }}>₦{((menuItem?.price || 0) * o.quantity).toLocaleString()}</span>
+                                      <span style={{ opacity: 0.7 }}>₦{(snapshotPrice * o.quantity).toLocaleString()}</span>
                                     </div>
                                   );
                                 })}
@@ -351,10 +353,11 @@ export const CheckManager: React.FC = () => {
                                     <div style={{ borderBottom: '1px dashed #000', marginBottom: '10px' }} />
                                     {historyOrder.orders.map((o, i) => {
                                       const menuItem = state.menu.find(m => m.id === o.menuItemId);
+                                      const snapshotPrice = o.priceAtOrder || menuItem?.price || 0;
                                       return (
                                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                                           <span>{o.quantity} {menuItem?.name}</span>
-                                          <span>₦{((menuItem?.price || 0) * o.quantity).toLocaleString()}</span>
+                                          <span>₦{(snapshotPrice * o.quantity).toLocaleString()}</span>
                                         </div>
                                       );
                                     })}
