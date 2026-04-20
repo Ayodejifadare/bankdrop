@@ -69,10 +69,14 @@ export const CheckManager: React.FC = () => {
 
   const handleConfirmAddItems = () => {
     if (selectedCheckId) {
-      const itemsToAdd = Object.entries(pendingOrders).map(([menuItemId, quantity]) => ({
-        menuItemId,
-        quantity
-      }));
+      const itemsToAdd = Object.entries(pendingOrders).map(([menuItemId, quantity]) => {
+        const menuItem = state.menu.find(m => m.id === menuItemId);
+        return {
+          menuItemId,
+          quantity,
+          priceAtOrder: menuItem?.price || 0
+        };
+      });
       if (itemsToAdd.length > 0) {
         addOrdersToCheck(selectedCheckId, itemsToAdd);
       }

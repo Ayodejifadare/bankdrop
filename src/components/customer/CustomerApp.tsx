@@ -17,7 +17,7 @@ interface Props {
 
 export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
   const { state: merchant } = useMerchant();
-  const { setCheckId, sessionId, setSessionId, splitSession, joinSplitSession, clearSession, removeSessionReward, participantId } = useCustomer();
+  const { setCheckId, setSessionId, splitSession, joinSplitSession, clearSession, removeSessionReward, participantId } = useCustomer();
   const { isAuthenticated, user } = useCustomerProfile();
   const [screen, setScreen] = useState<Screen>('cart');
   const [payAmount, setPayAmount] = useState(0);

@@ -300,13 +300,6 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
     );
   }
 
-  const getHeaderLabel = () => {
-    switch (type) {
-      case 'invoice': return 'Invoice Payment';
-      case 'quickpay': return 'Quickpay';
-      default: return 'Pay with Transfer';
-    }
-  };
 
   const getSubLabel = () => {
     switch (type) {

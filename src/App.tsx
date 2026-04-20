@@ -135,7 +135,7 @@ const App: React.FC = () => {
         <Suspense fallback={<LoadingScreen />}>
           <CustomerApp
             type={route.type}
-            targetId={route.targetId}
+            targetId={route.targetId!}
             onExit={() => navigate('')}
           />
         </Suspense>
