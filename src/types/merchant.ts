@@ -100,10 +100,22 @@ export interface PastOrder {
   timestamp: string;
 }
 
+export interface MerchantPreferences {
+  notificationSounds: boolean;
+  autoPrintReceipt: boolean;
+  terminalCheckCount: number;
+}
+
+export interface MerchantContactInfo {
+  email: string;
+  mobile: string;
+}
+
 export interface MerchantState {
   name: string;
   businessProfile?: string;
   businessCategory?: string;
+  contactInfo?: MerchantContactInfo;
   bankAccounts: BankAccount[];
   menu: MenuItem[];
   checks: Check[];
@@ -112,5 +124,6 @@ export interface MerchantState {
   pendingVerifications: PendingVerification[];
   activities: MerchantActivity[];
   orderHistory: PastOrder[];
-  archivedSessions: { [sessionId: string]: PastOrder }; // Store sessions by ID for receipt persistence
+  archivedSessions: { [sessionId: string]: PastOrder };
+  preferences: MerchantPreferences;
 }

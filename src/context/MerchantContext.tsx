@@ -9,7 +9,9 @@ import type {
   PendingVerification, 
   MerchantActivity, 
   PastOrder, 
-  MerchantState 
+  MerchantState,
+  MerchantPreferences,
+  MerchantContactInfo
 } from '../types/merchant';
 
 interface MerchantContextType {
@@ -43,6 +45,8 @@ interface MerchantContextType {
   requestVerification: (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => void;
   resolveVerification: (id: string, confirmed: boolean, confirmedAmount?: number) => void;
   resetCheck: (id: string) => void;
+  updatePreferences: (prefs: Partial<MerchantPreferences>) => void;
+  updateContactInfo: (contact: Partial<MerchantContactInfo>) => void;
 }
 
 const MerchantContext = createContext<MerchantContextType | undefined>(undefined);
@@ -98,6 +102,15 @@ const DEFAULT_STATE: MerchantState = {
   ],
   orderHistory: [],
   archivedSessions: {},
+  contactInfo: {
+    email: 'merchant@bankdrop.dev',
+    mobile: '+234 800 BANKDROP'
+  },
+  preferences: {
+    notificationSounds: true,
+    autoPrintReceipt: false,
+    terminalCheckCount: 12
+  }
 };
 
 export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -536,6 +549,37 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }));
   };
 
+  const updatePreferences = (prefs: Partial<MerchantPreferences>) => {
+    setState(prev => {
+      const newPrefs = { ...prev.preferences, ...prefs };
+      let newChecks = prev.checks;
+      
+      // If check count changed, adjust the checks array
+      if (prefs.terminalCheckCount !== undefined && prefs.terminalCheckCount !== prev.preferences.terminalCheckCount) {
+        if (prefs.terminalCheckCount > prev.checks.length) {
+          const extra = Array.from({ length: prefs.terminalCheckCount - prev.checks.length }, (_, i) => ({
+            id: `${prev.checks.length + i + 1}`,
+            status: 'open' as const,
+            orders: [],
+            total: 0,
+          }));
+          newChecks = [...prev.checks, ...extra];
+        } else if (prefs.terminalCheckCount < prev.checks.length) {
+          newChecks = prev.checks.slice(0, prefs.terminalCheckCount);
+        }
+      }
+      
+      return { ...prev, preferences: newPrefs, checks: newChecks };
+    });
+  };
+
+  const updateContactInfo = (contact: Partial<MerchantContactInfo>) => {
+    setState(prev => ({
+      ...prev,
+      contactInfo: { ...prev.contactInfo!, ...contact }
+    }));
+  };
+
   const resolveVerification = (id: string, confirmed: boolean, confirmedAmount?: number) => {
     setState(prev => {
       const verifications = prev.pendingVerifications || [];
@@ -639,7 +683,9 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       updateInvoiceStatus,
       requestVerification,
       resolveVerification,
-      resetCheck
+      resetCheck,
+      updatePreferences,
+      updateContactInfo
     }}>
       {children}
     </MerchantContext.Provider>

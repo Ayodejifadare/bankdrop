@@ -32,9 +32,10 @@ const NIGERIAN_BANKS = [
 
 interface ProfileProps {
   onBack: () => void;
+  onOpenSettings: () => void;
 }
 
-export const ProfileView: React.FC<ProfileProps> = ({ onBack }) => {
+export const ProfileView: React.FC<ProfileProps> = ({ onBack, onOpenSettings }) => {
   const { state, logout, addBankAccount, removeBankAccount, setPrimaryBankAccount } = useMerchant();
   const [showAddAccount, setShowAddAccount] = React.useState(false);
   const [isBankStackExpanded, setIsBankStackExpanded] = React.useState(false);
@@ -64,10 +65,10 @@ export const ProfileView: React.FC<ProfileProps> = ({ onBack }) => {
   };
 
   const links = [
-    { label: 'View Public Menu', icon: <ExternalLink size={20} /> },
-    { label: 'Merchant Settings', icon: <Settings size={20} /> },
-    { label: 'Security & Two-Factor', icon: <Shield size={20} /> },
-    { label: 'Business Support', icon: <HelpCircle size={20} /> },
+    { label: 'View Public Menu', icon: <ExternalLink size={20} />, onClick: () => {} },
+    { label: 'Merchant Settings', icon: <Settings size={20} />, onClick: onOpenSettings },
+    { label: 'Security & Two-Factor', icon: <Shield size={20} />, onClick: () => {} },
+    { label: 'Business Support', icon: <HelpCircle size={20} />, onClick: () => {} },
   ];
 
   return (
@@ -237,6 +238,7 @@ export const ProfileView: React.FC<ProfileProps> = ({ onBack }) => {
           <motion.div
             key={link.label}
             className={styles.linktreeItem}
+            onClick={link.onClick}
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: i * 0.1 }}

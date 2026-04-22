@@ -20,6 +20,7 @@ import { QRManager } from './QRManager';
 import { RewardsManager } from './Rewards';
 import { ActionHub } from './ActionHub';
 import { ProfileView } from './Profile';
+import { SettingsView } from './Settings';
 import { ActivityLog } from './ActivityLog';
 import { InvoiceBuilder } from './InvoiceBuilder';
 import { PaymentAlert } from './PaymentAlert';
@@ -156,6 +157,7 @@ export const MerchantApp: React.FC = () => {
   const [isActionHubOpen, setIsActionHubOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [viewProfile, setViewProfile] = useState(false);
+  const [viewSettings, setViewSettings] = useState(false);
   const [viewActivityLog, setViewActivityLog] = useState(false);
   const [segmentView, setSegmentView] = useState<'checks' | 'invoices'>('checks');
   const [isBuildingInvoice, setIsBuildingInvoice] = useState(false);
@@ -191,7 +193,16 @@ export const MerchantApp: React.FC = () => {
         }} 
       />
     );
-    if (viewProfile) return <ProfileView onBack={() => setViewProfile(false)} />;
+    if (viewSettings) return <SettingsView onBack={() => setViewSettings(false)} />;
+    if (viewProfile) return (
+      <ProfileView 
+        onBack={() => setViewProfile(false)} 
+        onOpenSettings={() => {
+          setViewProfile(false);
+          setViewSettings(true);
+        }}
+      />
+    );
     if (viewActivityLog) return <ActivityLog onBack={() => setViewActivityLog(false)} />;
     
     switch (activeTab) {
@@ -250,7 +261,7 @@ export const MerchantApp: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className={styles.title} onClick={() => { setActiveTab(0); setViewProfile(false); setViewActivityLog(false); }} style={{ cursor: 'pointer' }}>
+          <div className={styles.title} onClick={() => { setActiveTab(0); setViewProfile(false); setViewSettings(false); setViewActivityLog(false); }} style={{ cursor: 'pointer' }}>
             BANKDROP TERMINAL
           </div>
         )}
@@ -270,7 +281,7 @@ export const MerchantApp: React.FC = () => {
         {renderContent()}
       </div>
 
-      {!viewProfile && !isBuildingInvoice && (
+      {!viewProfile && !viewSettings && !isBuildingInvoice && (
         <motion.button 
           className={styles.fab}
           whileHover={{ scale: 1.05 }}
@@ -284,42 +295,43 @@ export const MerchantApp: React.FC = () => {
       {!viewProfile && !isBuildingInvoice && (
         <div className={styles.bottomNav}>
           <div 
-            className={`${styles.navItem} ${activeTab === 0 && !viewActivityLog && !viewProfile ? styles.active : ''}`}
-            onClick={() => { setActiveTab(0); setViewActivityLog(false); setViewProfile(false); }}
+            className={`${styles.navItem} ${activeTab === 0 && !viewActivityLog && !viewProfile && !viewSettings ? styles.active : ''}`}
+            onClick={() => { setActiveTab(0); setViewActivityLog(false); setViewProfile(false); setViewSettings(false); }}
           >
             <LayoutDashboard size={24} className={styles.navIcon} />
             <span>Dashboard</span>
           </div>
           <div 
-            className={`${styles.navItem} ${activeTab === 1 && !viewActivityLog && !viewProfile ? styles.active : ''}`}
-            onClick={() => { setActiveTab(1); setViewActivityLog(false); setViewProfile(false); }}
+            className={`${styles.navItem} ${activeTab === 1 && !viewActivityLog && !viewProfile && !viewSettings ? styles.active : ''}`}
+            onClick={() => { setActiveTab(1); setViewActivityLog(false); setViewProfile(false); setViewSettings(false); }}
           >
             <BookOpen size={24} className={styles.navIcon} />
             <span>Menu</span>
           </div>
           <div 
-            className={`${styles.navItem} ${activeTab === 2 && !viewActivityLog && !viewProfile ? styles.active : ''}`}
+            className={`${styles.navItem} ${activeTab === 2 && !viewActivityLog && !viewProfile && !viewSettings ? styles.active : ''}`}
             onClick={() => { 
               setActiveTab(2); 
               setSegmentView('checks');
               setIsBuildingInvoice(false);
               setViewActivityLog(false); 
               setViewProfile(false); 
+              setViewSettings(false);
             }}
           >
             <CreditCard size={24} className={styles.navIcon} />
             <span>Checks</span>
           </div>
           <div 
-            className={`${styles.navItem} ${activeTab === 3 && !viewActivityLog && !viewProfile ? styles.active : ''}`}
-            onClick={() => { setActiveTab(3); setViewActivityLog(false); setViewProfile(false); }}
+            className={`${styles.navItem} ${activeTab === 3 && !viewActivityLog && !viewProfile && !viewSettings ? styles.active : ''}`}
+            onClick={() => { setActiveTab(3); setViewActivityLog(false); setViewProfile(false); setViewSettings(false); }}
           >
             <QrCode size={24} className={styles.navIcon} />
             <span>QR</span>
           </div>
           <div 
-            className={`${styles.navItem} ${activeTab === 4 && !viewActivityLog && !viewProfile ? styles.active : ''}`}
-            onClick={() => { setActiveTab(4); setViewActivityLog(false); setViewProfile(false); }}
+            className={`${styles.navItem} ${activeTab === 4 && !viewActivityLog && !viewProfile && !viewSettings ? styles.active : ''}`}
+            onClick={() => { setActiveTab(4); setViewActivityLog(false); setViewProfile(false); setViewSettings(false); }}
           >
             <Gift size={24} className={styles.navIcon} />
             <span>Rewards</span>
@@ -333,6 +345,7 @@ export const MerchantApp: React.FC = () => {
         onAction={(tab, action) => {
           setActiveTab(tab);
           setViewProfile(false);
+          setViewSettings(false);
           if (action === 'new-invoice') {
             setSegmentView('invoices');
             setIsBuildingInvoice(true);
