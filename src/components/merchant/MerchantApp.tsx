@@ -10,7 +10,7 @@ import {
   Gift
 } from 'lucide-react';
 import { useMerchant } from '../../context/MerchantContext';
-import type { Invoice } from '../../types/merchant';
+import type { Invoice, MerchantView } from '../../types/merchant';
 import { MerchantAuth } from './MerchantAuth';
 import { MerchantOnboarding } from './Onboarding';
 import { MenuManager } from './Menu';
@@ -21,6 +21,7 @@ import { RewardsManager } from './Rewards';
 import { ActionHub } from './ActionHub';
 import { ProfileView } from './Profile';
 import { SettingsView } from './Settings';
+import { CheckSettings } from './CheckSettings';
 import { ActivityLog } from './ActivityLog';
 import { InvoiceBuilder } from './InvoiceBuilder';
 import { PaymentAlert } from './PaymentAlert';
@@ -150,20 +151,30 @@ const Dashboard: React.FC<{
   );
 };
 
+// Helper: map tab index to MerchantView
+const TAB_VIEWS: MerchantView[] = ['dashboard', 'menu', 'checks', 'qr', 'rewards'];
+
+// Helper: map MerchantView to tab index (returns -1 for overlay views)
+const viewToTab = (view: MerchantView): number => {
+  const idx = TAB_VIEWS.indexOf(view);
+  return idx >= 0 ? idx : -1;
+};
+
 // Main Layout Wrapper
 export const MerchantApp: React.FC = () => {
   const { state, isAuthenticated } = useMerchant();
-  const [activeTab, setActiveTab] = useState(0);
+  const [currentView, setCurrentView] = useState<MerchantView>('dashboard');
   const [isActionHubOpen, setIsActionHubOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [viewProfile, setViewProfile] = useState(false);
-  const [viewSettings, setViewSettings] = useState(false);
-  const [viewActivityLog, setViewActivityLog] = useState(false);
   const [segmentView, setSegmentView] = useState<'checks' | 'invoices'>('checks');
-  const [isBuildingInvoice, setIsBuildingInvoice] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [isAddingMenuItem, setIsAddingMenuItem] = useState(false);
   const [isAddingReward, setIsAddingReward] = useState(false);
+
+  // Derived state
+  const activeTabIndex = viewToTab(currentView);
+  const isOverlayView = activeTabIndex === -1; // profile, settings, activity_log, invoice_builder
+  const showChrome = currentView !== 'invoice_builder'; // hide header for full-screen builder
 
   if (!isAuthenticated) {
     return <MerchantAuth />;
@@ -183,69 +194,85 @@ export const MerchantApp: React.FC = () => {
     );
   }
 
+  const navigateTo = (view: MerchantView) => {
+    setCurrentView(view);
+  };
+
+  const navigateToTab = (tabIndex: number) => {
+    setCurrentView(TAB_VIEWS[tabIndex] || 'dashboard');
+  };
+
   const renderContent = () => {
-    if (isBuildingInvoice) return (
-      <InvoiceBuilder 
-        initialData={editingInvoice}
-        onClose={() => { 
-          setIsBuildingInvoice(false); 
-          setEditingInvoice(null); 
-        }} 
-      />
-    );
-    if (viewSettings) return <SettingsView onBack={() => setViewSettings(false)} />;
-    if (viewProfile) return (
-      <ProfileView 
-        onBack={() => setViewProfile(false)} 
-        onOpenSettings={() => {
-          setViewProfile(false);
-          setViewSettings(true);
-        }}
-      />
-    );
-    if (viewActivityLog) return <ActivityLog onBack={() => setViewActivityLog(false)} />;
-    
-    switch (activeTab) {
-      case 0: return (
-        <Dashboard 
-          onTabChange={(tab) => setActiveTab(tab)} 
-          onViewAll={() => setViewActivityLog(true)} 
-          onOpenNotifications={() => setIsNotificationsOpen(true)}
-        />
-      );
-      case 1: return <MenuManager initialAdding={isAddingMenuItem} onAddingComplete={() => setIsAddingMenuItem(false)} />;
-      case 2: 
+    switch (currentView) {
+      case 'invoice_builder':
+        return (
+          <InvoiceBuilder 
+            initialData={editingInvoice}
+            onClose={() => { 
+              setCurrentView('checks');
+              setSegmentView('invoices');
+              setEditingInvoice(null); 
+            }} 
+          />
+        );
+      case 'settings':
+        return <SettingsView onBack={() => setCurrentView('profile')} />;
+      case 'profile':
+        return (
+          <ProfileView 
+            onBack={() => setCurrentView('dashboard')} 
+            onOpenSettings={() => navigateTo('settings')}
+          />
+        );
+      case 'activity_log':
+        return <ActivityLog onBack={() => setCurrentView('dashboard')} />;
+      case 'dashboard':
+        return (
+          <Dashboard 
+            onTabChange={navigateToTab} 
+            onViewAll={() => navigateTo('activity_log')} 
+            onOpenNotifications={() => setIsNotificationsOpen(true)}
+          />
+        );
+      case 'menu':
+        return <MenuManager initialAdding={isAddingMenuItem} onAddingComplete={() => setIsAddingMenuItem(false)} />;
+      case 'check_settings':
+        return <CheckSettings onBack={() => setCurrentView('checks')} />;
+      case 'checks':
         return segmentView === 'checks' ? (
-          <CheckManager />
+          <CheckManager onOpenSettings={() => navigateTo('check_settings')} />
         ) : (
           <InvoicesManager 
             onStartBuilding={() => {
               setEditingInvoice(null);
-              setIsBuildingInvoice(true);
+              navigateTo('invoice_builder');
             }} 
             onEditInvoice={(inv) => {
               setEditingInvoice(inv);
-              setIsBuildingInvoice(true);
+              navigateTo('invoice_builder');
             }}
           />
         );
-      case 3: return <QRManager />;
-      case 4: return <RewardsManager initialAdding={isAddingReward} onAddingComplete={() => setIsAddingReward(false)} />;
-      default: return (
-        <Dashboard 
-          onTabChange={(tab) => setActiveTab(tab)} 
-          onViewAll={() => setViewActivityLog(true)} 
-          onOpenNotifications={() => setIsNotificationsOpen(true)}
-        />
-      );
+      case 'qr':
+        return <QRManager />;
+      case 'rewards':
+        return <RewardsManager initialAdding={isAddingReward} onAddingComplete={() => setIsAddingReward(false)} />;
+      default:
+        return (
+          <Dashboard 
+            onTabChange={navigateToTab} 
+            onViewAll={() => navigateTo('activity_log')} 
+            onOpenNotifications={() => setIsNotificationsOpen(true)}
+          />
+        );
     }
   };
 
   return (
     <div className={styles.merchantLayout}>
-      {!isBuildingInvoice && (
+      {showChrome && (
         <div className={styles.header}>
-        {activeTab === 2 && !viewProfile ? (
+        {currentView === 'checks' && !isOverlayView ? (
           <div className={styles.headerSegment}>
             <button 
               className={`${styles.segmentBtn} ${segmentView === 'checks' ? styles.segmentBtnActive : ''}`}
@@ -261,15 +288,15 @@ export const MerchantApp: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className={styles.title} onClick={() => { setActiveTab(0); setViewProfile(false); setViewSettings(false); setViewActivityLog(false); }} style={{ cursor: 'pointer' }}>
+          <div className={styles.title} onClick={() => navigateTo('dashboard')} style={{ cursor: 'pointer' }}>
             BANKDROP TERMINAL
           </div>
         )}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <motion.button 
             whileTap={{ scale: 0.9 }} 
-            onClick={() => setViewProfile(true)}
-            style={{ color: viewProfile ? 'var(--brand-accent)' : 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}
+            onClick={() => navigateTo('profile')}
+            style={{ color: currentView === 'profile' ? 'var(--brand-accent)' : 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}
           >
             <User size={24} />
           </motion.button>
@@ -277,11 +304,11 @@ export const MerchantApp: React.FC = () => {
       </div>
       )}
 
-      <div className={isBuildingInvoice ? styles.contentFull : styles.content}>
+      <div className={currentView === 'invoice_builder' ? styles.contentFull : styles.content}>
         {renderContent()}
       </div>
 
-      {!viewProfile && !viewSettings && !isBuildingInvoice && (
+      {!isOverlayView && (
         <motion.button 
           className={styles.fab}
           whileHover={{ scale: 1.05 }}
@@ -292,46 +319,42 @@ export const MerchantApp: React.FC = () => {
         </motion.button>
       )}
 
-      {!viewProfile && !isBuildingInvoice && (
+      {!isOverlayView && (
         <div className={styles.bottomNav}>
           <div 
-            className={`${styles.navItem} ${activeTab === 0 && !viewActivityLog && !viewProfile && !viewSettings ? styles.active : ''}`}
-            onClick={() => { setActiveTab(0); setViewActivityLog(false); setViewProfile(false); setViewSettings(false); }}
+            className={`${styles.navItem} ${currentView === 'dashboard' ? styles.active : ''}`}
+            onClick={() => navigateTo('dashboard')}
           >
             <LayoutDashboard size={24} className={styles.navIcon} />
             <span>Dashboard</span>
           </div>
           <div 
-            className={`${styles.navItem} ${activeTab === 1 && !viewActivityLog && !viewProfile && !viewSettings ? styles.active : ''}`}
-            onClick={() => { setActiveTab(1); setViewActivityLog(false); setViewProfile(false); setViewSettings(false); }}
+            className={`${styles.navItem} ${currentView === 'menu' ? styles.active : ''}`}
+            onClick={() => navigateTo('menu')}
           >
             <BookOpen size={24} className={styles.navIcon} />
             <span>Menu</span>
           </div>
           <div 
-            className={`${styles.navItem} ${activeTab === 2 && !viewActivityLog && !viewProfile && !viewSettings ? styles.active : ''}`}
+            className={`${styles.navItem} ${currentView === 'checks' ? styles.active : ''}`}
             onClick={() => { 
-              setActiveTab(2); 
+              navigateTo('checks'); 
               setSegmentView('checks');
-              setIsBuildingInvoice(false);
-              setViewActivityLog(false); 
-              setViewProfile(false); 
-              setViewSettings(false);
             }}
           >
             <CreditCard size={24} className={styles.navIcon} />
             <span>Checks</span>
           </div>
           <div 
-            className={`${styles.navItem} ${activeTab === 3 && !viewActivityLog && !viewProfile && !viewSettings ? styles.active : ''}`}
-            onClick={() => { setActiveTab(3); setViewActivityLog(false); setViewProfile(false); setViewSettings(false); }}
+            className={`${styles.navItem} ${currentView === 'qr' ? styles.active : ''}`}
+            onClick={() => navigateTo('qr')}
           >
             <QrCode size={24} className={styles.navIcon} />
             <span>QR</span>
           </div>
           <div 
-            className={`${styles.navItem} ${activeTab === 4 && !viewActivityLog && !viewProfile && !viewSettings ? styles.active : ''}`}
-            onClick={() => { setActiveTab(4); setViewActivityLog(false); setViewProfile(false); setViewSettings(false); }}
+            className={`${styles.navItem} ${currentView === 'rewards' ? styles.active : ''}`}
+            onClick={() => navigateTo('rewards')}
           >
             <Gift size={24} className={styles.navIcon} />
             <span>Rewards</span>
@@ -343,12 +366,10 @@ export const MerchantApp: React.FC = () => {
         isOpen={isActionHubOpen} 
         onClose={() => setIsActionHubOpen(false)} 
         onAction={(tab, action) => {
-          setActiveTab(tab);
-          setViewProfile(false);
-          setViewSettings(false);
+          navigateToTab(tab);
           if (action === 'new-invoice') {
             setSegmentView('invoices');
-            setIsBuildingInvoice(true);
+            setCurrentView('invoice_builder');
           } else if (action === 'add-menu-item') {
             setIsAddingMenuItem(true);
           } else if (action === 'create-reward') {

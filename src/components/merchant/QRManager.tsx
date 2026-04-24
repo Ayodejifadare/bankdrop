@@ -14,15 +14,16 @@ import styles from './MerchantUI.module.css';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface QRDisplayProps {
-  id: string;
+  id?: string;
   label: string;
-  type: 'merchant' | 'check';
+  type?: 'merchant' | 'check' | 'session';
+  url?: string;
 }
 
-const AestheticQR: React.FC<QRDisplayProps> = ({ id, label, type }) => {
-  const deepLink = type === 'merchant' 
+export const AestheticQR: React.FC<QRDisplayProps> = ({ id, label, type, url }) => {
+  const deepLink = url || (type === 'merchant' 
     ? `${window.location.origin}/#/pay/quickpay`
-    : `${window.location.origin}/#/check/${id}`;
+    : `${window.location.origin}/#/check/${id}`);
 
   return (
     <div style={{

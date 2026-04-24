@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { 
   Building2, 
   ChevronLeft, 
-  Bell, 
   Smartphone, 
   Monitor, 
   Lock, 
@@ -33,9 +32,8 @@ export const SettingsView: React.FC<SettingsProps> = ({ onBack }) => {
   });
 
   const [prefs, setPrefs] = useState({
-    notificationSounds: state.preferences.notificationSounds,
-    autoPrintReceipt: state.preferences.autoPrintReceipt,
-    terminalCheckCount: state.preferences.terminalCheckCount
+    notifications: state.preferences.notifications,
+    autoPrintReceipts: state.preferences.autoPrintReceipts
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -134,22 +132,10 @@ export const SettingsView: React.FC<SettingsProps> = ({ onBack }) => {
           </div>
           <Card>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-              <Input 
-                label="Active Check Capacity"
-                type="number"
-                min={1}
-                max={50}
-                value={prefs.terminalCheckCount}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  setPrefs({ ...prefs, terminalCheckCount: isNaN(val) ? 1 : Math.max(1, val) });
-                }}
-                rightAddon={<span style={{ fontSize: '0.75rem', opacity: 0.5 }}>Slots</span>}
-              />
               <Select 
                 label="Notification Sounds"
-                value={prefs.notificationSounds ? 'on' : 'off'}
-                onChange={(e) => setPrefs({ ...prefs, notificationSounds: e.target.value === 'on' })}
+                value={prefs.notifications ? 'on' : 'off'}
+                onChange={(e) => setPrefs({ ...prefs, notifications: e.target.value === 'on' })}
                 options={[
                   { value: 'on', label: 'Enabled' },
                   { value: 'off', label: 'Disabled' }
@@ -157,8 +143,8 @@ export const SettingsView: React.FC<SettingsProps> = ({ onBack }) => {
               />
               <Select 
                 label="Auto-Print Receipts"
-                value={prefs.autoPrintReceipt ? 'on' : 'off'}
-                onChange={(e) => setPrefs({ ...prefs, autoPrintReceipt: e.target.value === 'on' })}
+                value={prefs.autoPrintReceipts ? 'on' : 'off'}
+                onChange={(e) => setPrefs({ ...prefs, autoPrintReceipts: e.target.value === 'on' })}
                 options={[
                   { value: 'on', label: 'Always' },
                   { value: 'off', label: 'Manually' }

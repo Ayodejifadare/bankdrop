@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import type { CustomerPaymentType } from '../../types/checkout';
 import { useMerchant } from '../../context/MerchantContext';
 import { useCustomer } from '../../context/CustomerContext';
 import { Button } from '../ui/Button';
@@ -18,7 +19,7 @@ import jsPDF from 'jspdf';
 import styles from './CustomerUI.module.css';
 
 interface Props {
-  type: 'check' | 'invoice' | 'quickpay';
+  type: CustomerPaymentType;
   targetId: string;
   amount: number;
   onBack: () => void;
@@ -34,7 +35,22 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
   const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 min
   const [localAmount, setLocalAmount] = useState(initialAmount);
 
-  const bank = merchant.bankAccounts.find(acc => acc.isPrimary) || merchant.bankAccounts[0];
+  const bank = React.useMemo(() => {
+    if (type === 'check') {
+      const check = merchant.checks.find(c => c.id === targetId || c.sessionId === targetId);
+      if (check?.bankAccountId) {
+        const linkedAccount = merchant.bankAccounts.find(acc => acc.id === check.bankAccountId);
+        if (linkedAccount) return linkedAccount;
+      }
+    }
+    return merchant.bankAccounts.find(acc => acc.isPrimary) || merchant.bankAccounts[0];
+  }, [merchant.bankAccounts, merchant.checks, type, targetId]);
+
+  const isQuickPayCheck = React.useMemo(() => {
+    if (type !== 'check') return false;
+    const check = merchant.checks.find(c => c.id === targetId || c.sessionId === targetId);
+    return check?.paymentMode === 'quickpay';
+  }, [merchant.checks, type, targetId]);
 
   const isArchived = type === 'check' && sessionId && merchant.archivedSessions[sessionId];
   const archivedOrder = isArchived ? merchant.archivedSessions[sessionId!] : null;
@@ -42,7 +58,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
   const isPaid = type === 'invoice' 
     ? merchant.invoices.find(i => i.id === targetId)?.status === 'paid'
     : type === 'check'
-    ? (isArchived || merchant.checks.find(c => c.id === targetId)?.status === 'paid')
+    ? (isArchived || merchant.checks.find(c => c.id === targetId || c.sessionId === targetId)?.status === 'paid')
     : false;
 
   const receiptItems = React.useMemo(() => {
@@ -65,7 +81,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
       }
 
       // Priority 2: Current Active Check
-      const chk = merchant.checks.find(c => c.id === targetId);
+      const chk = merchant.checks.find(c => c.id === targetId || c.sessionId === targetId);
       if (!chk) return [];
       return chk.orders.map(o => {
         const menuItem = merchant.menu.find(m => m.id === o.menuItemId);
@@ -106,7 +122,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
 
   const handleConfirm = () => {
     requestVerification({
-      type: type,
+      type: type as 'check' | 'invoice' | 'quickpay',
       targetId: targetId,
       amount: localAmount,
       method: 'Transfer',
@@ -261,7 +277,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
           >
             <div style={{ textAlign: 'center', margin: '0 0 16px 0' }}>
               <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: '0 0 8px 0', textTransform: 'uppercase' }}>{merchant.name}</h2>
-              <div style={{ fontSize: '12px', color: '#333' }}>{type === 'quickpay' ? 'Quickpay Receipt' : 'Payment Receipt'}</div>
+              <div style={{ fontSize: '12px', color: '#333' }}>{(type === 'quickpay' || isQuickPayCheck) ? 'Quickpay Receipt' : 'Payment Receipt'}</div>
               <div style={{ fontSize: '12px', color: '#333' }}>{new Date().toLocaleString()}</div>
             </div>
             
@@ -277,7 +293,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
                   <div style={{ fontWeight: 'bold' }}>₦{(item.quantity * item.price).toLocaleString()}</div>
                 </div>
               )) : (
-                <div style={{ textAlign: 'center', color: '#666', fontSize: '12px' }}>{type === 'quickpay' ? 'Quickpay Transaction' : 'Custom Checkout Payment'}</div>
+                <div style={{ textAlign: 'center', color: '#666', fontSize: '12px' }}>{(type === 'quickpay' || isQuickPayCheck) ? 'Quickpay Transaction' : 'Custom Checkout Payment'}</div>
               )}
             </div>
             
@@ -309,6 +325,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
     }
   };
 
+
   return (
     <div className={styles.customerLayout}>
       <div className={styles.checkoutHeader}>
@@ -323,7 +340,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
 
       <div className={styles.cartBody}>
         <div className={styles.transferCard}>
-          {type === 'quickpay' ? (
+          {(type === 'quickpay' || isQuickPayCheck) ? (
             <div className={styles.transferAmount} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                <span>₦</span>
                <input 
@@ -357,7 +374,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
             <div className={styles.transferAmount}>₦{localAmount.toLocaleString()}</div>
           )}
           <div className={styles.transferSubtext}>
-            {type === 'quickpay' ? 'Enter amount and transfer to' : 'Transfer this exact amount to'}
+            {(type === 'quickpay' || isQuickPayCheck) ? 'Enter amount and transfer to' : 'Transfer this exact amount to'}
           </div>
 
           {bank ? (

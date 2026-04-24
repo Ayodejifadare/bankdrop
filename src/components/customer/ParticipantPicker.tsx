@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { ArrowLeft, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import styles from './CustomerUI.module.css';
+import { useResolvedCheck } from '../../hooks/useResolvedCheck';
 
 interface Props {
   checkId: string;
@@ -23,7 +24,7 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
     }
   }, [checkId, splitSession, joinSplitSession]);
 
-  const check = merchant.checks.find(c => c.id === checkId);
+  const { check } = useResolvedCheck(checkId);
   const me = splitSession?.participants.find(p => p.id === participantId);
   const myName = me?.name || `Guest ${participantId.slice(0, 3)}`;
   

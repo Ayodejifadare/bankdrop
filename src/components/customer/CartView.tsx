@@ -5,9 +5,12 @@ import { useCustomerProfile } from '../../context/CustomerProfileContext';
 import { Button } from '../ui/Button';
 import { RewardsBanner } from './RewardsBanner';
 import { CheckoutAuth } from './CheckoutAuth';
-import { Landmark, ArrowLeft } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Landmark, ArrowLeft, UserPlus, Share2, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AestheticQR } from '../merchant/QRManager';
 import styles from './CustomerUI.module.css';
+
+import { useResolvedCheck } from '../../hooks/useResolvedCheck';
 
 interface Props {
   checkId: string;
@@ -18,10 +21,11 @@ interface Props {
 
 export const CartView: React.FC<Props> = ({ checkId, onPay, onSplit, onBack }) => {
   const { state: merchant } = useMerchant();
-  const { splitSession, checkId: contextCheckId } = useCustomer();
+  const { splitSession, checkId: contextCheckId, sessionId } = useCustomer();
   const { isAuthenticated } = useCustomerProfile();
+  const [showInvite, setShowInvite] = React.useState(false);
 
-  const check = merchant.checks.find(c => c.id === checkId);
+  const { check } = useResolvedCheck(checkId);
   const subtotal = check?.total || 0;
   const discount = splitSession?.discount || 0;
   const finalTotal = Math.max(0, subtotal - discount);
@@ -113,13 +117,63 @@ export const CartView: React.FC<Props> = ({ checkId, onPay, onSplit, onBack }) =
       </div>
 
       <div className={styles.stickyCTA}>
-        <Button variant="accent" fullWidth size="large" onClick={() => onPay(finalTotal)}>
-          Pay ₦{finalTotal.toLocaleString()}
-        </Button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button variant="outline" onClick={() => setShowInvite(true)} style={{ flex: '0 0 56px', padding: 0 }}>
+            <UserPlus size={24} />
+          </Button>
+          <Button variant="accent" fullWidth size="large" onClick={() => onPay(finalTotal)}>
+            Pay ₦{finalTotal.toLocaleString()}
+          </Button>
+        </div>
         <Button variant="outline" fullWidth size="large" onClick={onSplit}>
           Split Payment
         </Button>
       </div>
+
+      <AnimatePresence>
+        {showInvite && (
+          <motion.div 
+            className={styles.inviteModalOverlay}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowInvite(false)}
+          >
+            <motion.div 
+              className={styles.inviteModal}
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button className={styles.inviteModalClose} onClick={() => setShowInvite(false)}>
+                <X size={24} />
+              </button>
+              <h3 className={styles.inviteTitle}>Group Order</h3>
+              <p className={styles.inviteSub}>Friends scan this QR to join your table and split the bill.</p>
+              
+              <div className={styles.inviteQRWrapper}>
+                <AestheticQR 
+                  label="Join Table" 
+                  url={`${window.location.origin}/#/session/${sessionId}`} 
+                />
+              </div>
+
+              <div className={styles.inviteAction}>
+                <Button variant="accent" fullWidth onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/#/session/${sessionId}`);
+                  alert('Link copied to clipboard!');
+                }}>
+                  <Share2 size={18} /> Copy Invite Link
+                </Button>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+                  Only people with this link can join your session.
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

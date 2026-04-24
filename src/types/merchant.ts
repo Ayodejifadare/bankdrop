@@ -57,9 +57,15 @@ export interface Invoice {
 export interface Check {
   id: string;
   status: 'open' | 'active' | 'paid';
+  enabled: boolean;
   orders: OrderItem[];
   total: number;
   sessionId?: string;
+  archivedAt?: string;
+  lifetimeOrders?: number;
+  lifetimeRevenue?: number;
+  bankAccountId?: string;
+  paymentMode?: 'itemized' | 'quickpay';
 }
 
 export interface Reward {
@@ -101,15 +107,29 @@ export interface PastOrder {
 }
 
 export interface MerchantPreferences {
-  notificationSounds: boolean;
-  autoPrintReceipt: boolean;
-  terminalCheckCount: number;
+  currency: 'NGN' | 'USD';
+  theme: 'light' | 'dark';
+  notifications: boolean;
+  autoPrintReceipts: boolean;
+  tableResetOnPay: boolean;
 }
 
 export interface MerchantContactInfo {
   email: string;
   mobile: string;
 }
+
+export type MerchantView =
+  | 'dashboard'
+  | 'menu'
+  | 'checks'
+  | 'qr'
+  | 'rewards'
+  | 'profile'
+  | 'settings'
+  | 'activity_log'
+  | 'invoice_builder'
+  | 'check_settings';
 
 export interface MerchantState {
   name: string;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import type { CustomerPaymentType } from '../../types/checkout';
 import { useCustomer } from '../../context/CustomerContext';
 import { useMerchant } from '../../context/MerchantContext';
 import { useCustomerProfile } from '../../context/CustomerProfileContext';
@@ -6,11 +7,13 @@ import { CartView } from './CartView';
 import { SplitSession } from './SplitSession';
 import { ParticipantPicker } from './ParticipantPicker';
 import { PayTransfer } from './PayTransfer';
+import { TableOccupied } from './TableOccupied';
+import { useResolvedCheck } from '../../hooks/useResolvedCheck';
 
 type Screen = 'cart' | 'split' | 'pick' | 'pay';
 
 interface Props {
-  type: 'check' | 'invoice' | 'quickpay';
+  type: CustomerPaymentType;
   targetId: string;
   onExit: () => void;
 }
@@ -22,6 +25,8 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
   const [screen, setScreen] = useState<Screen>('cart');
   const [payAmount, setPayAmount] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  const { check, archivedOrder, type: resolvedType } = useResolvedCheck(targetId);
 
   // Logout / Session Protection
   useEffect(() => {
@@ -42,7 +47,12 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
       return;
     }
 
-    if (type === 'invoice') {
+    if (type === 'occupied') {
+      setIsInitialized(true);
+      return;
+    }
+
+  if (type === 'invoice') {
       const invoice = merchant.invoices.find(inv => inv.id === targetId);
       if (invoice) {
         setPayAmount(invoice.total);
@@ -54,72 +64,49 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
 
     if (type === 'check') {
       const checkIdOrSession = targetId;
-      const isDirectSession = checkIdOrSession.startsWith('SESS_');
-      
-      if (isDirectSession) {
+
+      if (resolvedType === 'archived' && archivedOrder) {
         setSessionId(checkIdOrSession);
-        
-        // Resolve the human-readable Check ID from archives if possible
-        const archived = merchant.archivedSessions[checkIdOrSession];
-        if (archived) {
-          setCheckId(archived.checkId);
+        setCheckId(archivedOrder.checkId);
+        setPayAmount(archivedOrder.total);
+        setScreen('pay');
+        setIsInitialized(true);
+        return;
+      }
+
+      if (resolvedType === 'active' && check) {
+        setCheckId(check.id);
+        const activeSession = check.sessionId || checkIdOrSession;
+        setSessionId(activeSession);
+
+        if (check.paymentMode === 'quickpay') {
+          setPayAmount(0);
+          setScreen('pay');
         } else {
-          // Check if it's an active check session
-          const activeCheck = merchant.checks.find(c => c.sessionId === checkIdOrSession);
-          if (activeCheck) setCheckId(activeCheck.id);
+          setPayAmount(check.total);
+          setScreen('cart');
         }
 
-        setScreen('pay');
-        setIsInitialized(true);
-        return;
+        if (activeSession) {
+          localStorage.setItem(`last_session_check_${check.id}`, activeSession);
+        }
+
+        const savedSplit = localStorage.getItem(`check_split_${activeSession}`);
+        if (savedSplit && !isInitialized) {
+          joinSplitSession(activeSession);
+          setScreen('pick');
+        }
       }
 
-      // It's a check ID (e.g. "1")
-      setCheckId(checkIdOrSession);
-      
-      const check = merchant.checks.find(c => c.id === checkIdOrSession);
-      if (!check) return;
-
-      // Session Lock-in Logic
-      let activeSession = check.sessionId;
-      const cachedSession = localStorage.getItem(`last_session_check_${checkIdOrSession}`);
-      
-      // If we have a cached session and it's either the current active one OR the check was recently paid
-      // we stay on that session to show the receipt or the current order.
-      if (cachedSession && (activeSession === cachedSession || check.status === 'open')) {
-        activeSession = cachedSession;
-      }
-
-      if (activeSession) {
-        setSessionId(activeSession);
-        localStorage.setItem(`last_session_check_${checkIdOrSession}`, activeSession);
-      }
-
-      if (check.status === 'paid' && !activeSession) {
-        setScreen('pay');
-        setPayAmount(check.total);
-        setIsInitialized(true);
-        return;
-      }
-
-      if (check.status === 'open' && !activeSession) {
-        clearSession(checkIdOrSession);
-        setScreen('cart');
-        setIsInitialized(true);
-        return;
-      }
-
-      const savedSplit = localStorage.getItem(`check_split_${activeSession || checkIdOrSession}`);
-      if (savedSplit && !isInitialized) {
-        joinSplitSession(activeSession || checkIdOrSession);
-        setScreen('pick');
-      }
-      
       setIsInitialized(true);
     }
-  }, [type, targetId, merchant.invoices, merchant.checks, setCheckId, joinSplitSession, clearSession, isInitialized]);
+  }, [type, targetId, merchant.invoices, merchant.checks, setCheckId, joinSplitSession, clearSession, isInitialized, resolvedType, check, archivedOrder]);
 
   if (!isInitialized) return null;
+
+  if (type === 'occupied') {
+    return <TableOccupied checkId={targetId} onBack={onExit} />;
+  }
 
   switch (screen) {
     case 'cart':

@@ -12,13 +12,16 @@ import {
   Check as CheckIcon,
   Zap,
   Repeat,
-  Package
+  Package,
+  Settings,
+  Landmark
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '../ui/Card';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import styles from './MerchantUI.module.css';
+import { AestheticQR } from './QRManager';
 
 interface QuantityStepperProps {
   value: number;
@@ -46,8 +49,12 @@ const QuantityStepper: React.FC<QuantityStepperProps> = ({ value, onIncrease, on
   </div>
 );
 
-export const CheckManager: React.FC = () => {
-  const { state, addOrdersToCheck, updateOrderQuantity, updateCheckStatus, resetCheck } = useMerchant();
+interface CheckManagerProps {
+  onOpenSettings?: () => void;
+}
+
+export const CheckManager: React.FC<CheckManagerProps> = ({ onOpenSettings }) => {
+  const { state, addOrdersToCheck, updateOrderQuantity, updateCheckStatus, resetCheck, setCheckPaymentMode } = useMerchant();
   const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -121,8 +128,38 @@ export const CheckManager: React.FC = () => {
   return (
     <div className={styles.checkManager}>
       <header style={{ marginBottom: 'var(--spacing-lg)' }}>
-        <h2 className={styles.title}>Checks & Tables</h2>
-        <p style={{ color: 'var(--text-secondary)' }}>Tap a check to manage orders</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h2 className={styles.title}>Checks & Tables</h2>
+            <p style={{ color: 'var(--text-secondary)' }}>Tap a check to manage orders</p>
+          </div>
+          {onOpenSettings && (
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={onOpenSettings}
+              style={{ 
+                background: 'none', border: 'none', cursor: 'pointer', 
+                color: 'var(--text-secondary)', padding: '4px',
+                display: 'flex', alignItems: 'center', gap: '4px',
+                fontSize: '0.75rem', fontWeight: 600
+              }}
+            >
+              <Settings size={18} />
+            </motion.button>
+          )}
+        </div>
+        {state.checks.filter(c => !c.enabled).length > 0 && (
+          <p style={{ 
+            fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px',
+            display: 'flex', alignItems: 'center', gap: '4px'
+          }}>
+            <span style={{ 
+              width: '6px', height: '6px', borderRadius: '50%', 
+              backgroundColor: 'var(--text-muted)', display: 'inline-block' 
+            }} />
+            {state.checks.filter(c => !c.enabled).length} check{state.checks.filter(c => !c.enabled).length > 1 ? 's' : ''} disabled
+          </p>
+        )}
       </header>
 
       <div style={{ 
@@ -133,28 +170,32 @@ export const CheckManager: React.FC = () => {
         {state.checks.map(check => (
           <motion.div
             key={check.id}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setSelectedCheckId(check.id)}
+            whileHover={check.enabled ? { scale: 1.02 } : {}}
+            whileTap={check.enabled ? { scale: 0.95 } : {}}
+            onClick={() => check.enabled && setSelectedCheckId(check.id)}
             style={{
               aspectRatio: '1/1',
-              backgroundColor: 'var(--bg-secondary)',
+              backgroundColor: check.enabled ? 'var(--bg-secondary)' : 'var(--bg-tertiary)',
               borderRadius: 'var(--radius-md)',
-              border: `2px solid ${getStatusColor(check.status)}`,
+              border: check.enabled 
+                ? `2px solid ${getStatusColor(check.status)}` 
+                : '2px dashed var(--border-subtle)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer',
+              cursor: check.enabled ? 'pointer' : 'not-allowed',
               position: 'relative',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              opacity: check.enabled ? 1 : 0.35,
+              transition: 'opacity 0.2s ease'
             }}
           >
             <span style={{ fontSize: '1.25rem', fontWeight: 700 }}>{check.id}</span>
             <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-              {check.status === 'open' ? 'Free' : check.status}
+              {!check.enabled ? 'Closed' : check.status === 'open' ? 'Free' : check.status}
             </span>
-            {check.status === 'active' && (
+            {check.status === 'active' && check.enabled && (
               <div style={{ 
                 position: 'absolute', 
                 top: 0, 
@@ -165,6 +206,29 @@ export const CheckManager: React.FC = () => {
                 borderBottomLeftRadius: 'var(--radius-sm)'
               }}>
                 <Clock size={10} />
+              </div>
+            )}
+            {check.bankAccountId && check.enabled && (
+              <div style={{ 
+                position: 'absolute', 
+                top: 0, 
+                left: 0, 
+                padding: '4px',
+                color: 'var(--brand-accent)',
+                opacity: 0.6
+              }}>
+                <Landmark size={10} />
+              </div>
+            )}
+            {check.paymentMode === 'quickpay' && check.enabled && (
+              <div style={{ 
+                position: 'absolute', 
+                top: 0, 
+                right: 0, 
+                padding: '4px',
+                color: 'var(--brand-accent)',
+              }}>
+                <Zap size={10} fill="var(--brand-accent)" />
               </div>
             )}
           </motion.div>
@@ -198,7 +262,38 @@ export const CheckManager: React.FC = () => {
               <div style={{ width: 24 }} />
             </div>
 
-            {selectedCheck?.status === 'open' ? (
+            {/* Mode Toggle */}
+             <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+               <div className={styles.headerSegment}>
+                 <button 
+                   className={`${styles.segmentBtn} ${(!selectedCheck?.paymentMode || selectedCheck.paymentMode === 'itemized') ? styles.segmentBtnActive : ''}`}
+                   onClick={() => setCheckPaymentMode(selectedCheckId!, 'itemized')}
+                   style={{ flex: 1 }}
+                 >
+                   Standard
+                 </button>
+                 <button 
+                   className={`${styles.segmentBtn} ${selectedCheck?.paymentMode === 'quickpay' ? styles.segmentBtnActive : ''}`}
+                   onClick={() => setCheckPaymentMode(selectedCheckId!, 'quickpay')}
+                   style={{ flex: 1 }}
+                 >
+                   Quickpay
+                 </button>
+               </div>
+             </div>
+
+             {selectedCheck?.paymentMode === 'quickpay' ? (
+               <div style={{ textAlign: 'center', padding: '40px 16px', backgroundColor: 'rgba(181, 153, 82, 0.05)', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--brand-accent)' }}>
+                 <Zap size={48} color="var(--brand-accent)" style={{ marginBottom: '16px' }} />
+                 <h3 style={{ color: 'var(--brand-accent)' }}>Quickpay Active</h3>
+                 <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-lg)', fontSize: '0.875rem' }}>
+                   Customer will enter any amount. Check-specific routing is active.
+                 </p>
+                 <div style={{ padding: '16px', backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', display: 'inline-block', width: '100%' }}>
+                   <AestheticQR type="check" id={selectedCheckId!} label={`Check #${selectedCheckId}`} />
+                 </div>
+               </div>
+             ) : selectedCheck?.status === 'open' ? (
               <div style={{ textAlign: 'center', padding: '40px 16px' }}>
                 <Users size={64} style={{ opacity: 0.1, marginBottom: '24px' }} />
                 <h3>Check is empty</h3>

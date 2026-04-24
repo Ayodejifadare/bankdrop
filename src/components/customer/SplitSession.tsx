@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useMerchant } from '../../context/MerchantContext';
 import { useCustomer } from '../../context/CustomerContext';
 import { Button } from '../ui/Button';
 import type { SplitMethod } from '../../types/checkout';
@@ -15,6 +14,8 @@ import {
 } from 'lucide-react';
 import styles from './CustomerUI.module.css';
 
+import { useResolvedCheck } from '../../hooks/useResolvedCheck';
+
 interface Props {
   checkId: string;
   onPayShare: (amount: number) => void;
@@ -23,10 +24,10 @@ interface Props {
 }
 
 export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems, onBack }) => {
-  const { state: merchant } = useMerchant();
-  const { splitSession, createSplitSession, changeSplitMethod } = useCustomer();
+  const { createSplitSession, changeSplitMethod } = useCustomer();
+  const { splitSession } = useCustomer();
 
-  const check = merchant.checks.find(c => c.id === checkId);
+  const { check } = useResolvedCheck(checkId);
   const total = check?.total || 0;
   const discount = splitSession?.discount || 0;
   const finalTotal = Math.max(0, total - discount);

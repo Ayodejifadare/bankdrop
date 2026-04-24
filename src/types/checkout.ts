@@ -1,3 +1,12 @@
+export type AppView = 'landing' | 'merchant' | 'customer' | 'profile';
+export type CustomerPaymentType = 'check' | 'invoice' | 'quickpay' | 'occupied';
+
+export interface AppRoute {
+  view: AppView;
+  type?: CustomerPaymentType;
+  targetId?: string;
+}
+
 export type SplitMethod = 'items' | 'equal' | 'percentage' | 'custom';
 
 export interface Participant {

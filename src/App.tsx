@@ -22,13 +22,10 @@ import {
   Terminal,
   ScanLine
 } from 'lucide-react';
+import type { AppRoute } from './types/checkout';
 import styles from './App.module.css';
 
-type AppView = 'landing' | 'merchant' | 'customer' | 'profile';
-
-type CustomerPaymentType = 'check' | 'invoice' | 'quickpay';
-
-function parseHash(): { view: AppView; type?: CustomerPaymentType; targetId?: string } {
+function parseHash(): AppRoute {
   const hash = window.location.hash;
   
   // #/check/3
@@ -47,13 +44,16 @@ function parseHash(): { view: AppView; type?: CustomerPaymentType; targetId?: st
   if (invoiceMatch) return { view: 'customer', type: 'invoice', targetId: invoiceMatch[1] };
 
   if (hash === '#/merchant') return { view: 'merchant' };
+  if (hash.startsWith('#/occupied/')) {
+    return { view: 'customer', type: 'occupied', targetId: hash.replace('#/occupied/', '') };
+  }
   if (hash === '#/profile') return { view: 'profile' };
   return { view: 'landing' };
 }
 
 const App: React.FC = () => {
   const [route, setRoute] = useState(parseHash);
-  const { state: merchant } = useMerchant();
+  const { state: merchant, startCheckSession } = useMerchant();
   const { setSessionId, setCheckId } = useCustomer();
   const [isRedirecting, setIsRedirecting] = useState(false);
 
@@ -76,21 +76,33 @@ const App: React.FC = () => {
       const check = merchant.checks.find(c => c.id === checkIdOrSession);
       if (!check) return;
 
-      let activeSession = check.sessionId;
       const cachedSession = localStorage.getItem(`last_session_check_${checkIdOrSession}`);
+      const merchantSession = check.sessionId;
       
-      if (cachedSession && (activeSession === cachedSession || check.status === 'open')) {
-        activeSession = cachedSession;
+      let finalSession = merchantSession;
+
+      // ACTIVE SHIELD: Protect existing orders from strangers
+      if (merchantSession && cachedSession !== merchantSession && check.status === 'active') {
+        window.location.hash = `#/occupied/${checkIdOrSession}`;
+        return;
       }
 
-      if (activeSession) {
+      // START NEW SESSION IF:
+      // 1. Check has no session at all
+      // 2. OR User is a "New Initiator" on an OPEN/EMPTY check (safe to overwrite)
+      if (!merchantSession || (cachedSession !== merchantSession)) {
+        finalSession = startCheckSession(checkIdOrSession);
+      }
+
+      if (finalSession) {
         setIsRedirecting(true);
-        setSessionId(activeSession);
+        setSessionId(finalSession);
         setCheckId(checkIdOrSession);
-        window.location.hash = `#/session/${activeSession}`;
+        localStorage.setItem(`last_session_check_${checkIdOrSession}`, finalSession);
+        window.location.hash = `#/session/${finalSession}`;
       }
     }
-  }, [route, merchant.checks, setSessionId, setCheckId]);
+  }, [route, merchant.checks, setSessionId, setCheckId, startCheckSession]);
 
   const navigate = (hash: string) => {
     window.location.hash = hash;
