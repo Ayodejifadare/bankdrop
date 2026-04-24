@@ -13,6 +13,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { formatCurrency } from '../../utils/formatters';
 import styles from './MerchantUI.module.css';
 
 interface ActivityLogProps {
@@ -156,7 +157,7 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                   </div>
                   <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ fontWeight: 700, color: '#4ade80', fontSize: '1rem' }}>
-                      +₦{activity.amount.toLocaleString()}
+                      +{formatCurrency(activity.amount)}
                     </div>
                   </div>
                 </div>
@@ -190,9 +191,9 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                                   <div key={i} className={styles.detailRow}>
                                     <div>
                                       <div className={styles.detailName}>{item?.name || 'Unknown Item'}</div>
-                                      <div className={styles.detailQty}>{order.quantity} x ₦{(item?.price || 0).toLocaleString()}</div>
+                                      <div className={styles.detailQty}>{order.quantity} x {formatCurrency(item?.price || 0)}</div>
                                     </div>
-                                    <div className={styles.detailPrice}>₦{((item?.price || 0) * order.quantity).toLocaleString()}</div>
+                                    <div className={styles.detailPrice}>{formatCurrency((item?.price || 0) * order.quantity)}</div>
                                   </div>
                                 );
                               })
@@ -210,7 +211,7 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
 
                             <div className={styles.detailTotal}>
                               <span>Total Settled</span>
-                              <span style={{ color: 'var(--brand-accent)' }}>₦{activity.amount.toLocaleString()}</span>
+                              <span style={{ color: 'var(--brand-accent)' }}>{formatCurrency(activity.amount)}</span>
                             </div>
 
                             <button 

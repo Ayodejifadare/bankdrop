@@ -7,7 +7,24 @@
  * Formats a number as Nigerian Naira (₦).
  */
 export const formatCurrency = (amount: number): string => {
-  return `₦${amount.toLocaleString()}`;
+  return `₦${(amount || 0).toLocaleString()}`;
+};
+
+/**
+ * Alias for formatCurrency specifically for Naira.
+ */
+export const formatNaira = formatCurrency;
+
+/**
+ * Checks if an ISO date string represents "today" in local time.
+ */
+export const isToday = (isoString: string): boolean => {
+  if (!isoString) return false;
+  const d = new Date(isoString);
+  const now = new Date();
+  return d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
 };
 
 /**

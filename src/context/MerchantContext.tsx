@@ -11,6 +11,7 @@ import type {
   MerchantPreferences,
   MerchantContactInfo
 } from '../types/merchant';
+import { MERCHANT_LIMITS, STORAGE_KEYS } from '../utils/constants';
 import { MerchantAuthProvider, useMerchantAuth } from './MerchantAuthContext';
 import { MerchantMenuProvider, useMerchantMenu } from './MerchantMenuContext';
 
@@ -48,9 +49,7 @@ const MerchantOpsContext = createContext<MerchantOpsContextType | undefined>(und
 // Hardened ID generator
 const genId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
-const MAX_ARCHIVED_SESSIONS = 50;
-const MAX_ORDER_HISTORY = 100;
-const MAX_ACTIVITIES = 150;
+const { MAX_ARCHIVED_SESSIONS, MAX_ORDER_HISTORY, MAX_ACTIVITIES } = MERCHANT_LIMITS;
 
 const INITIAL_OPS_STATE: MerchantState = {
   name: "Bankdrop Grill",
@@ -97,16 +96,20 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return INITIAL_OPS_STATE;
   });
 
-  // Sync to localStorage
+  // Sync to localStorage - Consistently handle merging to avoid race conditions
   useEffect(() => {
-    const saved = localStorage.getItem('merchant_state');
-    const currentState = saved ? JSON.parse(saved) : {};
-    localStorage.setItem('merchant_state', JSON.stringify({
-      ...currentState,
+    const saved = localStorage.getItem(STORAGE_KEYS.MERCHANT_STATE);
+    const currentPersisted = saved ? JSON.parse(saved) : {};
+    
+    // Only persist what Ops/Root owns, but keep menu/rewards updated in the global object
+    const updatedPersisted = {
+      ...currentPersisted,
       ...state,
-      menu, // Keep global state object in LocalStorage complete for other apps
+      menu, 
       rewards
-    }));
+    };
+    
+    localStorage.setItem(STORAGE_KEYS.MERCHANT_STATE, JSON.stringify(updatedPersisted));
   }, [state, menu, rewards]);
 
   // Deep Prune on Mount

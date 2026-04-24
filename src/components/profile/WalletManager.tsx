@@ -7,6 +7,7 @@ import styles from './ProfileUI.module.css';
 import { Plus, Landmark, Smartphone, ChevronRight, X, ShieldCheck, Download } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Input, Select } from '../ui/Input';
+import { formatCurrency } from '../../utils/formatters';
 
 const NIGERIAN_BANKS = [
   'Access Bank',
@@ -58,7 +59,7 @@ export const WalletManager: React.FC = () => {
                 >
                   <div style={{ marginTop: 'var(--spacing-sm)' }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Balance</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>₦{account.balance.toLocaleString()}</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>{formatCurrency(account.balance)}</div>
                   </div>
                   {account.isPrimary && (
                     <div style={{ 

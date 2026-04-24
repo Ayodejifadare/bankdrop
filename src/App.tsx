@@ -195,14 +195,14 @@ const App: React.FC = () => {
             description="Your current liquidity across all accounts"
             variant="elevated"
           >
-            <div className={styles.statValue}>$142,500.00</div>
+            <div className={styles.statValue}>₦142,500.00</div>
             <div className={styles.statGrid}>
               <div className={styles.statCard}>
                 <div className={styles.statValue} style={{ color: 'var(--text-primary)', fontSize: '1rem' }}>+12%</div>
                 <div className={styles.statLabel}>Growth</div>
               </div>
               <div className={styles.statCard}>
-                <div className={styles.statValue} style={{ color: 'var(--text-primary)', fontSize: '1rem' }}>$4,200</div>
+                <div className={styles.statValue} style={{ color: 'var(--text-primary)', fontSize: '1rem' }}>₦4,200</div>
                 <div className={styles.statLabel}>Monthly</div>
               </div>
               <div className={styles.statCard}>
@@ -222,7 +222,7 @@ const App: React.FC = () => {
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Electronics</div>
                   </div>
                 </div>
-                <div style={{ fontWeight: 600 }}>-$1,299.00</div>
+                <div style={{ fontWeight: 600 }}>-₦1,299.00</div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -233,7 +233,7 @@ const App: React.FC = () => {
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Redemption</div>
                   </div>
                 </div>
-                <div style={{ fontWeight: 600, color: 'var(--brand-accent)' }}>+$450.00</div>
+                <div style={{ fontWeight: 600, color: 'var(--brand-accent)' }}>+₦450.00</div>
               </div>
             </div>
           </Card>

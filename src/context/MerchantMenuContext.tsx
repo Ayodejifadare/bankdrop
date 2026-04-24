@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import type { MenuItem, Reward } from '../types/merchant';
+import { STORAGE_KEYS } from '../utils/constants';
 
 interface MerchantMenuContextType {
   menu: MenuItem[];
@@ -40,7 +41,7 @@ const DEFAULT_REWARDS: Reward[] = [
 export const MerchantMenuProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load from local storage or use defaults
   const [menu, setMenu] = useState<MenuItem[]>(() => {
-    const saved = localStorage.getItem('merchant_state');
+    const saved = localStorage.getItem(STORAGE_KEYS.MERCHANT_STATE);
     if (saved) {
       const parsed = JSON.parse(saved);
       return parsed.menu || DEFAULT_MENU;
@@ -49,7 +50,7 @@ export const MerchantMenuProvider: React.FC<{ children: React.ReactNode }> = ({ 
   });
 
   const [rewards, setRewards] = useState<Reward[]>(() => {
-    const saved = localStorage.getItem('merchant_state');
+    const saved = localStorage.getItem(STORAGE_KEYS.MERCHANT_STATE);
     if (saved) {
       const parsed = JSON.parse(saved);
       return parsed.rewards || DEFAULT_REWARDS;
@@ -57,16 +58,7 @@ export const MerchantMenuProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return DEFAULT_REWARDS;
   });
 
-  // Sync menu/rewards to the main state object in localStorage for backward compat
-  useEffect(() => {
-    const saved = localStorage.getItem('merchant_state');
-    const currentState = saved ? JSON.parse(saved) : {};
-    localStorage.setItem('merchant_state', JSON.stringify({
-      ...currentState,
-      menu,
-      rewards
-    }));
-  }, [menu, rewards]);
+  // Removed redundant useEffect sync as MerchantOpsProvider handles global state persistence
 
   const addMenuItem = (item: MenuItem) => {
     setMenu(prev => [...prev, { ...item, status: item.status || 'active' }]);

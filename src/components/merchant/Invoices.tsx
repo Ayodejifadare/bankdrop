@@ -13,6 +13,7 @@ import {
   Clock,
   Edit3
 } from 'lucide-react';
+import { formatCurrency } from '../../utils/formatters';
 import { motion } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -76,7 +77,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     const shareUrl = `${window.location.origin}/#/pay/${invoice.id}`;
     const shareData = {
       title: `Invoice from ${state.name}`,
-      text: `Hi ${invoice.customerName}, here is your invoice for ₦${invoice.total.toLocaleString()}. Pay securely here:`,
+      text: `Hi ${invoice.customerName}, here is your invoice for ${formatCurrency(invoice.total)}. Pay securely here:`,
       url: shareUrl
     };
 
@@ -100,7 +101,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         <div>
           <h2 className={styles.title} style={{ fontSize: '1.5rem' }}>Outstanding Invoices</h2>
           <p style={{ color: 'var(--brand-accent)', fontSize: '1.25rem', fontWeight: 700 }}>
-            ₦{totalOutstanding.toLocaleString()}
+            {formatCurrency(totalOutstanding)}
           </p>
         </div>
         <Button size="small" variant="accent" onClick={onStartBuilding}>
@@ -157,7 +158,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                   <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-                    ₦{invoice.total.toLocaleString()}
+                    {formatCurrency(invoice.total)}
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <Button variant="ghost" size="small" style={{ padding: '8px' }} onClick={() => onEditInvoice?.(invoice)} disabled={!!downloadingId}>
@@ -196,7 +197,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                   }}>
                     <Clock size={12} />
                     <span>
-                      Schedule: ₦{(invoice.paymentPlan?.depositAmount || 0).toLocaleString()} Upfront + {
+                      Schedule: {formatCurrency(invoice.paymentPlan?.depositAmount || 0)} Upfront + {
                         invoice.paymentPlan?.frequency === 'on_delivery' 
                           ? 'Balance on Delivery' 
                           : invoice.paymentPlan?.frequency === 'scheduled' && invoice.paymentPlan?.installments?.[0]
@@ -221,7 +222,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           </div>
         )}
       </div>
+      </div>
     </div>
-  </div>
   );
 };
