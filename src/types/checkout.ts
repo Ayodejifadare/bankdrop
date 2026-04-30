@@ -7,7 +7,13 @@ export interface AppRoute {
   targetId?: string;
 }
 
-export type SplitMethod = 'items' | 'equal' | 'percentage' | 'custom';
+export type SplitMethod = 'items' | 'equal' | 'percentage' | 'custom' | 'full';
+
+export interface SessionItem {
+  name: string;
+  quantity: number;
+  price: number;
+}
 
 export interface Participant {
   id: string;
@@ -20,8 +26,10 @@ export interface Participant {
 export interface SplitSession {
   id: string;
   checkId: string;
+  businessName: string;
   method: SplitMethod;
   participants: Participant[];
+  items: SessionItem[];
   createdAt: number;
   discount?: number;
   appliedBy?: string; // name of participant

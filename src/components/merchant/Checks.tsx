@@ -175,41 +175,33 @@ export const CheckManager: React.FC<CheckManagerProps> = ({ onOpenSettings }) =>
       {/* In-check Menu Selection Modal */}
       <AnimatePresence>
         {isAddingItem && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            style={{
-              position: 'fixed', // Fixed instead of absolute for better layering
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              backgroundColor: 'var(--bg-primary)',
-              zIndex: 1100,
-              padding: 'var(--spacing-lg)'
-            }}
+          <motion.div 
+            className={styles.fullPageModal}
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <h3 style={{ margin: 0 }}>Add Items</h3>
-                {Object.keys(pendingOrders).length > 0 && (
-                  <span className={styles.pendingBadge}>
-                    {Object.values(pendingOrders).reduce((a, b) => a + b, 0)} selected
-                  </span>
+            <div className={styles.modalHeader}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 className={styles.title} style={{ margin: 0 }}>Add Items</h3>
+                  {Object.keys(pendingOrders).length > 0 && (
+                    <span className={styles.pendingBadge}>
+                      {Object.values(pendingOrders).reduce((a, b) => a + b, 0)} selected
+                    </span>
+                  )}
+                </div>
+                {selectedCheck && (
+                  <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                    Check #{selectedCheck.id} • Table {selectedCheck.id}
+                  </div>
                 )}
               </div>
-              <button onClick={handleCloseModal} style={{ border: 'none', background: 'none', color: 'var(--text-primary)' }}><X size={24} /></button>
+              <button onClick={handleCloseModal} className={styles.stepperBtn} style={{ width: '40px', height: '40px' }}><X size={24} /></button>
             </div>
 
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              gap: 'var(--spacing-sm)',
-              paddingBottom: '100px',
-              overflowY: 'auto',
-              flex: 1
-            }}>
+            <div className={styles.modalBody}>
               {state.menu.map(item => (
                 <div 
                   key={item.id} 
@@ -246,11 +238,7 @@ export const CheckManager: React.FC<CheckManagerProps> = ({ onOpenSettings }) =>
             </div>
 
             {Object.keys(pendingOrders).length > 0 && (
-              <motion.div 
-                className={styles.confirmBar}
-                initial={{ y: 100 }}
-                animate={{ y: 0 }}
-              >
+              <div className={styles.confirmBar}>
                 <Button 
                   variant="accent" 
                   fullWidth 
@@ -263,7 +251,7 @@ export const CheckManager: React.FC<CheckManagerProps> = ({ onOpenSettings }) =>
                     return total + (price * qty);
                   }, 0))}
                 </Button>
-              </motion.div>
+              </div>
             )}
           </motion.div>
         )}

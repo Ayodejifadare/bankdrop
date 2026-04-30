@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCustomer } from '../../context/CustomerContext';
+import { useMerchant } from '../../context/MerchantContext';
 import { Button } from '../ui/Button';
 import type { SplitMethod } from '../../types/checkout';
 import {
@@ -27,6 +28,7 @@ interface Props {
 export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems, onBack }) => {
   const { createSplitSession, changeSplitMethod, splitSession, participantId, sessionId } = useCustomer();
 
+  const { state: merchant } = useMerchant();
   const { check } = useResolvedCheck(checkId);
   const total = check?.total || 0;
   const discount = splitSession?.discount || 0;
@@ -34,10 +36,19 @@ export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems
 
   // Init session if not yet created
   React.useEffect(() => {
-    if (!splitSession && sessionId) {
-      createSplitSession(checkId, sessionId, 'items');
+    if (!splitSession && sessionId && check) {
+      const sessionItems = check.orders.map(o => {
+        const menuItem = merchant.menu.find(m => m.id === o.menuItemId);
+        return {
+          name: menuItem?.name || 'Unknown Item',
+          quantity: o.quantity,
+          price: o.priceAtOrder || menuItem?.price || 0
+        };
+      });
+
+      createSplitSession(checkId, sessionId, 'items', sessionItems, merchant.name);
     }
-  }, [checkId, sessionId, splitSession, createSplitSession]);
+  }, [checkId, sessionId, splitSession, createSplitSession, check, merchant]);
 
   const method: SplitMethod = splitSession?.method || 'items';
 

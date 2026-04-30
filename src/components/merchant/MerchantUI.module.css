@@ -140,6 +140,46 @@
   }
 }
 
+/* Full-Page Scoped View for Add Items/Long Flows */
+.fullPageModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--bg-primary);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  height: 100vh; /* Primary height */
+  height: 100dvh; /* Dynamic height for mobile toolbars */
+  overflow: hidden;
+  animation: slideUp var(--transition-normal) ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.modalHeader {
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(8px);
+}
+
+.modalBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+  padding-bottom: 140px; /* Space for floating confirm bar */
+  -webkit-overflow-scrolling: touch;
+}
+
 .fabMenuOverlay {
   position: fixed;
   top: 0;
@@ -487,19 +527,21 @@
 }
 
 .confirmBar {
-  position: sticky;
-  bottom: -var(--spacing-lg);
-  left: -var(--spacing-lg);
-  right: -var(--spacing-lg);
-  padding: var(--spacing-lg);
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  border-top: 1px solid var(--glass-border);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 24px var(--spacing-lg) calc(env(safe-area-inset-bottom) + 24px);
+  background: linear-gradient(to top, var(--bg-primary) 80%, transparent);
   display: flex;
+  flex-direction: column;
   gap: var(--spacing-md);
-  z-index: 10;
-  margin: calc(var(--spacing-lg) * -1);
-  margin-top: var(--spacing-xl) !important;
+  z-index: 100;
+  pointer-events: none; /* Let clicks pass through to list behind gradient if needed */
+}
+
+.confirmBar > * {
+  pointer-events: auto; /* Re-enable clicks for buttons */
 }
 
 .pendingBadge {

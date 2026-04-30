@@ -5,8 +5,6 @@ import { Button } from './components/ui/Button';
 import { LoadingScreen } from './components/ui/LoadingScreen';
 import { useMerchant } from './context/MerchantContext';
 import { useCustomer } from './context/CustomerContext';
-import { CustomerProfileProvider } from './context/CustomerProfileContext';
-
 // Lazy load the main applications
 // Lazy load the main applications
 const MerchantApp = lazy(() => import('./components/merchant/MerchantApp'));

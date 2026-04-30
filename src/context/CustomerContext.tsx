@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { SplitSession, Participant, SplitMethod } from '../types/checkout';
-import { customerService, profileService } from '../api/dataService';
+import type { SplitSession, Participant, SplitMethod, SessionItem } from '../types/checkout';
+import { customerService } from '../api/dataService';
 import { generateSimpleId } from '../utils/idUtils';
 import { useCustomerProfile } from './CustomerProfileContext';
 import { STORAGE_KEYS } from '../utils/constants';
@@ -18,7 +18,7 @@ interface CustomerContextType {
   setSessionId: (id: string | null) => void;
   setSignedIn: (v: boolean) => void;
   applyReward: (id: string | null) => void;
-  createSplitSession: (checkId: string, sessionId: string, method: SplitMethod) => Promise<SplitSession>;
+  createSplitSession: (checkId: string, sessionId: string, method: SplitMethod, items: SessionItem[], businessName: string) => Promise<SplitSession>;
   joinSplitSession: (sessionId: string) => Promise<SplitSession | null>;
   updateParticipant: (sessionId: string, participant: Participant) => Promise<void>;
   changeSplitMethod: (method: SplitMethod) => Promise<void>;
@@ -33,10 +33,10 @@ const CustomerContext = createContext<CustomerContextType | undefined>(undefined
 
 export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [participantId] = useState(() => {
-    const saved = sessionStorage.getItem(STORAGE_KEYS.PARTICIPANT_ID);
+    const saved = localStorage.getItem(STORAGE_KEYS.PARTICIPANT_ID);
     if (saved) return saved;
     const id = generateSimpleId();
-    sessionStorage.setItem(STORAGE_KEYS.PARTICIPANT_ID, id);
+    localStorage.setItem(STORAGE_KEYS.PARTICIPANT_ID, id);
     return id;
   });
   const { user, isAuthenticated, addActivity } = useCustomerProfile();
@@ -108,7 +108,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [sessionId, splitSession]);
 
-  const createSplitSession = useCallback(async (cId: string, sId: string, method: SplitMethod): Promise<SplitSession> => {
+  const createSplitSession = useCallback(async (cId: string, sId: string, method: SplitMethod, items: SessionItem[], businessName: string): Promise<SplitSession> => {
     setIsSaving(true);
     try {
       // ATOMIC CREATE: Only create if doesn't exist, otherwise return existing
@@ -118,6 +118,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return {
           id: sId,
           checkId: cId,
+          businessName: businessName,
           method,
           participants: [{
             id: participantId,
@@ -126,9 +127,10 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             share: 0,
             paid: false,
           }],
+          items: items,
           status: 'active',
-          timestamp: new Date().toISOString()
-        };
+          createdAt: Date.now()
+        } as SplitSession;
       }, 'customer');
 
       setSplitSession(session);
@@ -210,7 +212,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Use provided amount, or fall back to calculated share/total
       const finalAmount = amount ?? (
         splitSession?.method === 'full' 
-          ? (splitSession.items?.reduce((sum, item) => sum + (item.priceAtOrder * item.quantity), 0) || 0)
+          ? (splitSession.items?.reduce((sum: number, item: SessionItem) => sum + (item.price * item.quantity), 0) || 0)
           : (myParticipant?.share || 0)
       );
 
@@ -224,7 +226,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           status: 'pending',
           category: 'Food & Drink',
           referenceId: splitSession?.id || checkId || undefined,
-          items: splitSession?.items?.filter((_, idx) => myParticipant?.selectedItemIndices.includes(idx))
+          items: splitSession?.items?.filter((_: SessionItem, idx: number) => myParticipant?.selectedItemIndices.includes(idx))
         });
       }
     }
