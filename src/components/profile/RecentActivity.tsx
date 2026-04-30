@@ -43,7 +43,22 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ onActivityClick 
                   )}
                 </div>
                 <div className={styles.activityMain}>
-                  <span className={styles.activityEntity}>{activity.entity}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className={styles.activityEntity}>{activity.entity}</span>
+                    {activity.status && activity.status !== 'completed' && (
+                      <span style={{ 
+                        fontSize: '0.65rem', 
+                        padding: '1px 5px', 
+                        borderRadius: '4px', 
+                        backgroundColor: 'var(--bg-tertiary)', 
+                        color: 'var(--text-muted)',
+                        fontWeight: 700,
+                        textTransform: 'uppercase'
+                      }}>
+                        {activity.status}
+                      </span>
+                    )}
+                  </div>
                   <span className={styles.activityTime}>{formatShortDate(activity.timestamp)}</span>
                 </div>
               </div>

@@ -3,6 +3,7 @@ import { useMerchant } from '../../context/MerchantContext';
 import type { Invoice, InvoiceItem, MenuItem, Installment } from '../../types/merchant';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { formatCurrency, getCurrencySymbol } from '../../utils/formatters';
 import styles from './MerchantUI.module.css';
 import { 
   X,
@@ -21,7 +22,6 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { InvoicePDFContent } from './InvoicePDFContent';
 import { PaymentPlanConfigurator } from './PaymentPlanConfigurator';
-import { formatCurrency } from '../../utils/formatters';
 
 interface InvoiceBuilderProps {
   onClose: () => void;
@@ -309,7 +309,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
                           onChange={(e) => updateItem(item.id, { name: e.target.value })}
                         />
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>₦</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{getCurrencySymbol()}</span>
                           <input 
                             type="number"
                             style={{ 
@@ -426,7 +426,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
                     </button>
                   )}
                   <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700 }}>₦</span>
+                    <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700 }}>{getCurrencySymbol()}</span>
                     <input 
                       type="number"
                       style={{ 
@@ -533,7 +533,7 @@ export const InvoiceBuilder: React.FC<InvoiceBuilderProps> = ({ onClose, initial
                 </div>
 
                 <div style={{ marginBottom: '32px' }}>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>Unit Price (₦)</label>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>Unit Price ({getCurrencySymbol()})</label>
                   <input 
                     type="number"
                     style={{ 

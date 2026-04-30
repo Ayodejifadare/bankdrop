@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { SplitSession, Participant, SplitMethod } from '../types/checkout';
+import { customerService, profileService } from '../api/dataService';
+import { generateSimpleId } from '../utils/idUtils';
+import { useCustomerProfile } from './CustomerProfileContext';
+import { STORAGE_KEYS } from '../utils/constants';
 
 interface CustomerContextType {
   checkId: string | null;
@@ -8,42 +12,51 @@ interface CustomerContextType {
   participantId: string;
   isSignedIn: boolean;
   appliedRewardId: string | null;
+  isSaving: boolean;
+  isLoading: boolean;
   setCheckId: (id: string | null) => void;
   setSessionId: (id: string | null) => void;
   setSignedIn: (v: boolean) => void;
   applyReward: (id: string | null) => void;
-  createSplitSession: (checkId: string, method: SplitMethod) => SplitSession;
-  joinSplitSession: (checkId: string) => SplitSession | null;
-  updateParticipant: (sessionId: string, participant: Participant) => void;
-  changeSplitMethod: (method: SplitMethod) => void;
-  applySessionReward: (amount: number, name: string) => void;
-  removeSessionReward: () => void;
-  markPaid: () => void;
-  clearSession: (checkId: string) => void;
+  createSplitSession: (checkId: string, sessionId: string, method: SplitMethod) => Promise<SplitSession>;
+  joinSplitSession: (sessionId: string) => Promise<SplitSession | null>;
+  updateParticipant: (sessionId: string, participant: Participant) => Promise<void>;
+  changeSplitMethod: (method: SplitMethod) => Promise<void>;
+  applySessionReward: (amount: number, name: string) => Promise<void>;
+  removeSessionReward: () => Promise<void>;
+  markPaid: (amount?: number) => Promise<void>;
+  clearSession: (checkId: string) => Promise<void>;
   syncError: string | null;
 }
 
 const CustomerContext = createContext<CustomerContextType | undefined>(undefined);
 
-function generateId() {
-  return Math.random().toString(36).substring(2, 10);
-}
-
 export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [participantId] = useState(() => {
-    const saved = sessionStorage.getItem('participant_id');
+    const saved = sessionStorage.getItem(STORAGE_KEYS.PARTICIPANT_ID);
     if (saved) return saved;
-    const id = generateId();
-    sessionStorage.setItem('participant_id', id);
+    const id = generateSimpleId();
+    sessionStorage.setItem(STORAGE_KEYS.PARTICIPANT_ID, id);
     return id;
   });
+  const { user, isAuthenticated, addActivity } = useCustomerProfile();
 
   const [checkId, setCheckId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [splitSession, setSplitSession] = useState<SplitSession | null>(null);
+  const [splitSession, setSplitSession] = useState<SplitSession | null>(() => {
+    const hash = window.location.hash;
+    const sId = hash.includes('/session/') ? hash.split('/session/')[1]?.split('?')[0] : null;
+    if (sId) {
+      const saved = localStorage.getItem(`check_split_${sId}`);
+      return saved ? JSON.parse(saved) : null;
+    }
+    return null;
+  });
   const [isSignedIn, setSignedIn] = useState(false);
   const [appliedRewardId, setAppliedRewardId] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Auto-clear sync errors
   useEffect(() => {
@@ -53,162 +66,179 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [syncError]);
 
-  // Load split session from localStorage when sessionId changes
+  // Background Revalidation
   useEffect(() => {
     if (sessionId) {
-      const saved = localStorage.getItem(`check_split_${sessionId}`);
-      if (saved) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSplitSession(JSON.parse(saved));
-      } else {
-        setSplitSession(null);
-      }
+      const loadSession = async () => {
+        const saved = await customerService.fetchSplitSession(sessionId);
+        if (saved) setSplitSession(saved);
+      };
+      loadSession();
     }
   }, [sessionId]);
 
-  // LIVE SYNC: Listen for storage events from other tabs to keep multiplayer state in sync
+  // LIVE SYNC: Subscribe to dataService updates
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (sessionId && e.key === `check_split_${sessionId}` && e.newValue) {
-        setSplitSession(JSON.parse(e.newValue));
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    if (!sessionId) return;
+    return customerService.subscribeToSplitSession(sessionId, (updated) => {
+      setSplitSession(updated);
+    });
   }, [sessionId]);
 
-  // Persist split session changes
-  const persistSession = useCallback((session: SplitSession) => {
-    const keyId = sessionId || session.checkId;
-    localStorage.setItem(`check_split_${keyId}`, JSON.stringify(session));
-    setSplitSession(session);
-  }, [sessionId]);
-
-  const createSplitSession = useCallback((cId: string, method: SplitMethod): SplitSession => {
-    const session: SplitSession = {
-      id: generateId(),
-      checkId: cId,
-      method,
-      participants: [{
-        id: participantId,
-        name: `Guest 1`,
-        selectedItemIndices: [],
-        share: 0,
-        paid: false,
-      }],
-      createdAt: Date.now(),
-    };
-    persistSession(session);
-    return session;
-  }, [participantId, persistSession]);
-
-  const joinSplitSession = useCallback((cId: string): SplitSession | null => {
-    const saved = localStorage.getItem(`check_split_${cId}`);
-    if (!saved) return null;
-    const session: SplitSession = JSON.parse(saved);
-    // Don't duplicate if already joined
-    if (!session.participants.find(p => p.id === participantId)) {
-      session.participants.push({
-        id: participantId,
-        name: `Guest ${session.participants.length + 1}`,
-        selectedItemIndices: [],
-        share: 0,
-        paid: false,
-      });
-      persistSession(session);
+  // Persist State Helper (Optimistic)
+  const performSessionUpdate = useCallback(async (updater: (cur: SplitSession) => SplitSession) => {
+    if (!sessionId || !splitSession) return;
+    const prev = splitSession;
+    
+    // 1. Instant UI update
+    const optimistic = updater(splitSession);
+    setSplitSession(optimistic);
+    setIsSaving(true);
+    
+    try {
+      // 2. Async persistence
+      const next = await customerService.patchSplitSession(sessionId, updater, 'customer');
+      // 3. Silent re-sync
+      setSplitSession(next);
+    } catch (err) {
+      console.error('Session update failed, rolling back:', err);
+      setSplitSession(prev);
+    } finally {
+      setIsSaving(false);
     }
-    setSplitSession(session);
-    return session;
-  }, [participantId, persistSession]);
+  }, [sessionId, splitSession]);
 
-  const updateParticipant = useCallback((_sessionId: string, updated: Participant) => {
-    const keyId = sessionId || checkId;
-    const saved = localStorage.getItem(`check_split_${keyId}`);
-    if (!saved) return;
-    const session: SplitSession = JSON.parse(saved);
-    session.participants = session.participants.map(p => p.id === updated.id ? updated : p);
-    persistSession(session);
-  }, [sessionId, checkId, persistSession]);
+  const createSplitSession = useCallback(async (cId: string, sId: string, method: SplitMethod): Promise<SplitSession> => {
+    setIsSaving(true);
+    try {
+      // ATOMIC CREATE: Only create if doesn't exist, otherwise return existing
+      const session = await customerService.patchSplitSession(sId, current => {
+        if (current && current.id === sId) return current;
+        
+        return {
+          id: sId,
+          checkId: cId,
+          method,
+          participants: [{
+            id: participantId,
+            name: 'Guest 1',
+            selectedItemIndices: [],
+            share: 0,
+            paid: false,
+          }],
+          status: 'active',
+          timestamp: new Date().toISOString()
+        };
+      }, 'customer');
 
-  const changeSplitMethod = useCallback((method: SplitMethod) => {
-    if (!splitSession) return;
-    const updated = { ...splitSession, method };
-    persistSession(updated);
-  }, [splitSession, persistSession]);
+      setSplitSession(session);
+      return session;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [participantId]);
+  
+  const joinSplitSession = useCallback(async (sId: string): Promise<SplitSession | null> => {
+    setIsLoading(true);
+    try {
+      // ATOMIC JOIN: Safely add participant to existing session
+      const session = await customerService.patchSplitSession(sId, current => {
+        if (!current || !current.id) return current; // Can't join non-existent
+        
+        if (!current.participants.find((p: Participant) => p.id === participantId)) {
+          return {
+            ...current,
+            participants: [...current.participants, {
+              id: participantId,
+              name: `Guest ${current.participants.length + 1}`,
+              selectedItemIndices: [],
+              share: 0,
+              paid: false,
+            }]
+          };
+        }
+        return current;
+      }, 'customer');
+      
+      setSplitSession(session);
+      return session;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [participantId]);
 
-  /**
-   * OPTIMISTIC UI: applySessionReward
-   */
+  const updateParticipant = useCallback(async (_sessionId: string, updated: Participant) => {
+    await performSessionUpdate(current => ({
+      ...current,
+      participants: current.participants.map((p: Participant) => p.id === updated.id ? updated : p)
+    }));
+  }, [performSessionUpdate]);
+
+  const changeSplitMethod = useCallback(async (method: SplitMethod) => {
+    await performSessionUpdate(current => ({ ...current, method }));
+  }, [performSessionUpdate]);
+
   const applySessionReward = useCallback(async (amount: number, name: string) => {
-    if (!splitSession) return;
-    
-    // 1. Capture previous state for rollback
-    const previousSession = { ...splitSession };
-    
-    // 2. Optimistically update state
-    const optimisticSession = {
-      ...splitSession,
-      discount: amount,
-      appliedBy: name
-    };
-    setSplitSession(optimisticSession);
-    
-    // 3. Background Persistence (Simulated)
-    try {
-      // Small artificial delay to show the "snap"
-      const keyId = sessionId || splitSession.checkId;
-      localStorage.setItem(`check_split_${keyId}`, JSON.stringify(optimisticSession));
-    } catch {
-      console.error('Persistence failed, rolling back');
-      // Rollback!
-      setSplitSession(previousSession);
-      setSyncError('Failed to apply reward. Please try again.');
-    }
-  }, [splitSession]);
+    await performSessionUpdate(current => {
+      const next = { ...current, discount: amount, appliedBy: name };
+      return next;
+    });
+  }, [performSessionUpdate]);
 
-  /**
-   * OPTIMISTIC UI: removeSessionReward
-   */
   const removeSessionReward = useCallback(async () => {
-    if (!splitSession) return;
-    
-    const previousSession = { ...splitSession };
-    
-    const optimisticSession = { ...splitSession };
-    delete optimisticSession.discount;
-    delete optimisticSession.appliedBy;
-    
-    setSplitSession(optimisticSession);
-    
-    try {
-      const keyId = sessionId || splitSession.checkId;
-      localStorage.setItem(`check_split_${keyId}`, JSON.stringify(optimisticSession));
-    } catch {
-      setSplitSession(previousSession);
-      setSyncError('Failed to remove reward. Please try again.');
-    }
-  }, [splitSession]);
+    await performSessionUpdate(current => {
+      const next = { ...current };
+      delete next.discount;
+      delete next.appliedBy;
+      return next;
+    });
+  }, [performSessionUpdate]);
 
-  const markPaid = useCallback(() => {
-    if (!splitSession) return;
-    const updated = {
-      ...splitSession,
-      participants: splitSession.participants.map(p =>
+  const markPaid = useCallback(async (amount?: number) => {
+    // 1. Update session status
+    await performSessionUpdate(current => ({
+      ...current,
+      participants: current.participants.map(p =>
         p.id === participantId ? { ...p, paid: true } : p
-      ),
-    };
-    persistSession(updated);
-  }, [splitSession, participantId, persistSession]);
+      )
+    }));
 
-  const clearSession = useCallback((cId: string) => {
-    localStorage.removeItem(`check_split_${cId}`);
+    // 2. Record in Customer Profile Activity if logged in
+    if (isAuthenticated && user) {
+      const myParticipant = splitSession?.participants.find(p => p.id === participantId);
+      
+      // Use provided amount, or fall back to calculated share/total
+      const finalAmount = amount ?? (
+        splitSession?.method === 'full' 
+          ? (splitSession.items?.reduce((sum, item) => sum + (item.priceAtOrder * item.quantity), 0) || 0)
+          : (myParticipant?.share || 0)
+      );
+
+      // Don't record 0 amount activities unless it's explicitly intended
+      if (finalAmount > 0 || amount !== undefined) {
+        await addActivity({
+          type: 'sent',
+          amount: finalAmount,
+          entity: splitSession?.businessName || 'Merchant', // Will be refined in the UI if missing
+          timestamp: new Date().toISOString(),
+          status: 'pending',
+          category: 'Food & Drink',
+          referenceId: splitSession?.id || checkId || undefined,
+          items: splitSession?.items?.filter((_, idx) => myParticipant?.selectedItemIndices.includes(idx))
+        });
+      }
+    }
+  }, [participantId, performSessionUpdate, isAuthenticated, user, splitSession, addActivity, checkId]);
+
+  const clearSession = useCallback(async (cId: string) => {
+    await customerService.clearSplitSession(cId);
     setSplitSession(null);
   }, []);
 
   return (
     <CustomerContext.Provider value={{
       checkId, sessionId, splitSession, participantId, isSignedIn, appliedRewardId,
+      isSaving, isLoading,
       setCheckId, setSessionId, setSignedIn, applyReward: setAppliedRewardId,
       createSplitSession, joinSplitSession, updateParticipant,
       changeSplitMethod, applySessionReward, removeSessionReward, markPaid, clearSession,
@@ -219,7 +249,6 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useCustomer = () => {
   const ctx = useContext(CustomerContext);
   if (!ctx) throw new Error('useCustomer must be used within CustomerProvider');

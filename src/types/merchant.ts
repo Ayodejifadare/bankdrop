@@ -101,6 +101,7 @@ export interface MerchantActivity {
 export interface PastOrder {
   id: string;
   checkId: string;
+  sessionId: string;
   orders: OrderItem[];
   total: number;
   timestamp: string;

@@ -1,18 +1,22 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { MenuItem, Reward } from '../types/merchant';
+import { merchantService, realtimeService } from '../api/dataService';
+import type { RealtimeEvent } from '../api/realtimeService';
 import { STORAGE_KEYS } from '../utils/constants';
 
 interface MerchantMenuContextType {
   menu: MenuItem[];
   rewards: Reward[];
-  addMenuItem: (item: MenuItem) => void;
-  updateMenuItem: (item: MenuItem) => void;
-  archiveMenuItem: (id: string) => void;
-  restoreMenuItem: (id: string) => void;
-  deleteMenuItem: (id: string) => void;
-  addReward: (reward: Reward) => void;
-  updateReward: (reward: Reward) => void;
-  deleteReward: (id: string) => void;
+  isSaving: boolean;
+  isLoading: boolean;
+  addMenuItem: (item: MenuItem) => Promise<void>;
+  updateMenuItem: (item: MenuItem) => Promise<void>;
+  archiveMenuItem: (id: string) => Promise<void>;
+  restoreMenuItem: (id: string) => Promise<void>;
+  deleteMenuItem: (id: string) => Promise<void>;
+  addReward: (reward: Reward) => Promise<void>;
+  updateReward: (reward: Reward) => Promise<void>;
+  deleteReward: (id: string) => Promise<void>;
 }
 
 const MerchantMenuContext = createContext<MerchantMenuContextType | undefined>(undefined);
@@ -39,63 +43,140 @@ const DEFAULT_REWARDS: Reward[] = [
 ];
 
 export const MerchantMenuProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load from local storage or use defaults
   const [menu, setMenu] = useState<MenuItem[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.MERCHANT_STATE);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return parsed.menu || DEFAULT_MENU;
-    }
-    return DEFAULT_MENU;
+    return saved ? JSON.parse(saved).menu || DEFAULT_MENU : DEFAULT_MENU;
   });
-
   const [rewards, setRewards] = useState<Reward[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.MERCHANT_STATE);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return parsed.rewards || DEFAULT_REWARDS;
-    }
-    return DEFAULT_REWARDS;
+    return saved ? JSON.parse(saved).rewards || DEFAULT_REWARDS : DEFAULT_REWARDS;
   });
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading] = useState(false);
 
-  // Removed redundant useEffect sync as MerchantOpsProvider handles global state persistence
+  // Background Revalidation
+  useEffect(() => {
+    const revalidate = async () => {
+      const saved = await merchantService.fetchState();
+      if (saved) {
+        if (saved.menu) setMenu(saved.menu);
+        if (saved.rewards) setRewards(saved.rewards);
+      }
+    };
+    revalidate();
+  }, []);
 
-  const addMenuItem = (item: MenuItem) => {
-    setMenu(prev => [...prev, { ...item, status: item.status || 'active' }]);
+  // Real-time synchronization
+  useEffect(() => {
+    const unsub = realtimeService.subscribe('STATE_CHANGED', async (event: RealtimeEvent) => {
+      // Refresh if the update came from another tab or from the Ops provider
+      if (event.payload?.source !== 'menu') {
+        const saved = await merchantService.fetchState();
+        if (saved) {
+          if (saved.menu) setMenu(saved.menu);
+          if (saved.rewards) setRewards(saved.rewards);
+        }
+      }
+    });
+    return unsub;
+  }, []);
+
+  /**
+   * CENTRALIZED PERSISTENCE HELPER
+   * Standardizes the Fetch-Modify-Save pattern to prevent race conditions.
+   */
+  const performMenuUpdate = async (updater: (curMenu: MenuItem[], curRewards: Reward[]) => { nextMenu: MenuItem[], nextRewards: Reward[] }) => {
+    const prevMenu = menu;
+    const prevRewards = rewards;
+    
+    // 1. Calculate and Apply Optimistic State
+    const { nextMenu, nextRewards } = updater(menu, rewards);
+    setMenu(nextMenu);
+    setRewards(nextRewards);
+    setIsSaving(true);
+    
+    try {
+      // 2. Persist in background
+      const next = await merchantService.patchState(current => {
+        // Re-calculate based on latest storage state to handle potential concurrent updates
+        const result = updater(current.menu || menu, current.rewards || rewards);
+        return { ...current, menu: result.nextMenu, rewards: result.nextRewards };
+      }, 'menu');
+      
+      // 3. Silent re-sync with actual result from storage
+      setMenu(next.menu || []);
+      setRewards(next.rewards || []);
+    } catch (err) {
+      console.error('Failed to persist menu state, rolling back:', err);
+      setMenu(prevMenu);
+      setRewards(prevRewards);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const updateMenuItem = (item: MenuItem) => {
-    setMenu(prev => prev.map(m => m.id === item.id ? item : m));
+  const addMenuItem = async (item: MenuItem) => {
+    await performMenuUpdate((m, r) => ({ 
+      nextMenu: [...m, { ...item, status: item.status || 'active' }], 
+      nextRewards: r 
+    }));
   };
 
-  const archiveMenuItem = (id: string) => {
-    setMenu(prev => prev.map(m => m.id === id ? { ...m, status: 'archived' } : m));
+  const updateMenuItem = async (item: MenuItem) => {
+    await performMenuUpdate((m, r) => ({ 
+      nextMenu: m.map(i => i.id === item.id ? item : i), 
+      nextRewards: r 
+    }));
   };
 
-  const restoreMenuItem = (id: string) => {
-    setMenu(prev => prev.map(m => m.id === id ? { ...m, status: 'active' } : m));
+  const archiveMenuItem = async (id: string) => {
+    await performMenuUpdate((m, r) => ({ 
+      nextMenu: m.map(i => i.id === id ? { ...i, status: 'archived' as const } : i), 
+      nextRewards: r 
+    }));
   };
 
-  const deleteMenuItem = (id: string) => {
-    setMenu(prev => prev.filter(m => m.id !== id));
+  const restoreMenuItem = async (id: string) => {
+    await performMenuUpdate((m, r) => ({ 
+      nextMenu: m.map(i => i.id === id ? { ...i, status: 'active' as const } : i), 
+      nextRewards: r 
+    }));
   };
 
-  const addReward = (reward: Reward) => {
-    setRewards(prev => [...prev, reward]);
+  const deleteMenuItem = async (id: string) => {
+    await performMenuUpdate((m, r) => ({ 
+      nextMenu: m.filter(i => i.id !== id), 
+      nextRewards: r 
+    }));
   };
 
-  const updateReward = (reward: Reward) => {
-    setRewards(prev => prev.map(r => r.id === reward.id ? reward : r));
+  const addReward = async (reward: Reward) => {
+    await performMenuUpdate((m, r) => ({ 
+      nextMenu: m, 
+      nextRewards: [...r, reward] 
+    }));
   };
 
-  const deleteReward = (id: string) => {
-    setRewards(prev => prev.filter(r => r.id !== id));
+  const updateReward = async (reward: Reward) => {
+    await performMenuUpdate((m, r) => ({ 
+      nextMenu: m, 
+      nextRewards: r.map(i => i.id === reward.id ? reward : i) 
+    }));
+  };
+
+  const deleteReward = async (id: string) => {
+    await performMenuUpdate((m, r) => ({ 
+      nextMenu: m, 
+      nextRewards: r.filter(i => i.id !== id) 
+    }));
   };
 
   return (
     <MerchantMenuContext.Provider value={{ 
       menu, 
       rewards, 
+      isSaving,
+      isLoading,
       addMenuItem, 
       updateMenuItem, 
       archiveMenuItem, 

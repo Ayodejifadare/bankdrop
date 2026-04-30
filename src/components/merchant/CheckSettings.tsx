@@ -8,6 +8,7 @@ import {
 import { useMerchant } from '../../context/MerchantContext';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { formatCurrency } from '../../utils/formatters';
 import { motion } from 'framer-motion';
 import styles from './MerchantUI.module.css';
 
@@ -18,17 +19,8 @@ interface CheckSettingsProps {
 export const CheckSettings: React.FC<CheckSettingsProps> = ({ onBack }) => {
   const { state, toggleCheckEnabled, addCheck, linkBankAccountToCheck } = useMerchant();
 
-  const checkStatsMap = useMemo(() => {
-    const map: Record<string, { totalOrders: number; totalRevenue: number }> = {};
-    state.orderHistory.forEach(order => {
-      if (!map[order.checkId]) {
-        map[order.checkId] = { totalOrders: 0, totalRevenue: 0 };
-      }
-      map[order.checkId].totalOrders += order.orders.length;
-      map[order.checkId].totalRevenue += order.total;
-    });
-    return map;
-  }, [state.orderHistory]);
+  // Stats are now maintained incrementally in the check object directly.
+
 
   const enabledCount = state.checks.filter(c => c.enabled).length;
   const disabledCount = state.checks.filter(c => !c.enabled).length;
@@ -94,9 +86,8 @@ export const CheckSettings: React.FC<CheckSettingsProps> = ({ onBack }) => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
         {state.checks.map((check, index) => {
-          const stats = checkStatsMap[check.id] || { totalOrders: 0, totalRevenue: 0 };
-          const cachedLifetimeOrders = (check.lifetimeOrders || 0) + stats.totalOrders;
-          const cachedLifetimeRevenue = (check.lifetimeRevenue || 0) + stats.totalRevenue;
+          const cachedLifetimeOrders = check.lifetimeOrders || 0;
+          const cachedLifetimeRevenue = check.lifetimeRevenue || 0;
           const isActive = check.status !== 'open';
 
           return (
@@ -154,7 +145,7 @@ export const CheckSettings: React.FC<CheckSettingsProps> = ({ onBack }) => {
                         <BarChart3 size={12} />
                         {cachedLifetimeOrders} orders
                       </span>
-                      <span>₦{cachedLifetimeRevenue.toLocaleString()}</span>
+                      <span>{formatCurrency(cachedLifetimeRevenue)}</span>
                     </div>
                   </div>
 

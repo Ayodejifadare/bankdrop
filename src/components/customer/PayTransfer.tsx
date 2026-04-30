@@ -16,6 +16,7 @@ import {
 import { motion } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { formatCurrency, getCurrencySymbol } from '../../utils/formatters';
 import styles from './CustomerUI.module.css';
 
 interface Props {
@@ -28,7 +29,7 @@ interface Props {
 
 export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAmount, onBack, onDone }) => {
   const { state: merchant, requestVerification } = useMerchant();
-  const { sessionId, checkId: contextCheckId } = useCustomer();
+  const { sessionId, checkId: contextCheckId, markPaid } = useCustomer();
   const receiptRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -106,6 +107,19 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
     return () => clearInterval(timer);
   }, [isPaid, confirmed]);
 
+  // AUTO-SUCCESS: Listen for merchant confirmation
+  useEffect(() => {
+    if (isPaid && !confirmed) {
+      setConfirmed(true);
+      // Small delay to let the state settle before showing receipt
+      setTimeout(() => {
+        if (typeof onDone === 'function' && !isPaid) {
+           // This is just a safety check
+        }
+      }, 500);
+    }
+  }, [isPaid, confirmed]);
+
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
@@ -127,6 +141,10 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
       amount: localAmount,
       method: 'Transfer',
     });
+    
+    // SYNC: Record the payment activity in the customer profile
+    markPaid(localAmount);
+    
     setConfirmed(true);
   };
 
@@ -189,7 +207,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
               transition={{ delay: 0.3 }}
               style={{ color: 'var(--text-muted)', marginBottom: '8px' }}
             >
-              ₦{localAmount.toLocaleString()} to {merchant.name}
+              {formatCurrency(localAmount)} to {merchant.name}
             </motion.p>
 
             <motion.div
@@ -240,7 +258,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span>Amount</span><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>₦{localAmount.toLocaleString()}</span>
+                <span>Amount</span><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formatCurrency(localAmount)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <span>Merchant</span><span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{merchant.name}</span>
@@ -288,9 +306,9 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <div style={{ flex: 1, paddingRight: '8px' }}>
                     <div style={{ fontWeight: 'bold' }}>{item.name}</div>
-                    <div style={{ fontSize: '12px', marginTop: '2px' }}>{item.quantity} x ₦{item.price.toLocaleString()}</div>
+                    <div style={{ fontSize: '12px', marginTop: '2px' }}>{item.quantity} x {formatCurrency(item.price)}</div>
                   </div>
-                  <div style={{ fontWeight: 'bold' }}>₦{(item.quantity * item.price).toLocaleString()}</div>
+                  <div style={{ fontWeight: 'bold' }}>{formatCurrency(item.quantity * item.price)}</div>
                 </div>
               )) : (
                 <div style={{ textAlign: 'center', color: '#666', fontSize: '12px' }}>{(type === 'quickpay' || isQuickPayCheck) ? 'Quickpay Transaction' : 'Custom Checkout Payment'}</div>
@@ -301,11 +319,11 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
             
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', marginTop: '8px' }}>
               <span>TOTAL</span>
-              <span>₦{localAmount.toLocaleString()}</span>
+              <span>{formatCurrency(localAmount)}</span>
             </div>
 
             <div style={{ textAlign: 'center', marginTop: '32px', fontSize: '12px', fontStyle: 'italic', fontWeight: 'bold' }}>
-              Thank you for your patro!
+              Thank you for your patronage!
             </div>
             <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '10px', color: '#666' }}>
               Powered by Bankdrop
@@ -342,7 +360,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
         <div className={styles.transferCard}>
           {(type === 'quickpay' || isQuickPayCheck) ? (
             <div className={styles.transferAmount} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-               <span>₦</span>
+               <span>{getCurrencySymbol()}</span>
                <input 
                  type="text"
                  inputMode="numeric"
@@ -371,7 +389,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
                />
             </div>
           ) : (
-            <div className={styles.transferAmount}>₦{localAmount.toLocaleString()}</div>
+            <div className={styles.transferAmount}>{formatCurrency(localAmount)}</div>
           )}
           <div className={styles.transferSubtext}>
             {(type === 'quickpay' || isQuickPayCheck) ? 'Enter amount and transfer to' : 'Transfer this exact amount to'}

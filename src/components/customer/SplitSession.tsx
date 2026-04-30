@@ -13,6 +13,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import styles from './CustomerUI.module.css';
+import { formatCurrency, getCurrencySymbol } from '../../utils/formatters';
 
 import { useResolvedCheck } from '../../hooks/useResolvedCheck';
 
@@ -24,8 +25,7 @@ interface Props {
 }
 
 export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems, onBack }) => {
-  const { createSplitSession, changeSplitMethod } = useCustomer();
-  const { splitSession } = useCustomer();
+  const { createSplitSession, changeSplitMethod, splitSession, participantId, sessionId } = useCustomer();
 
   const { check } = useResolvedCheck(checkId);
   const total = check?.total || 0;
@@ -34,10 +34,10 @@ export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems
 
   // Init session if not yet created
   React.useEffect(() => {
-    if (!splitSession) {
-      createSplitSession(checkId, 'items');
+    if (!splitSession && sessionId) {
+      createSplitSession(checkId, sessionId, 'items');
     }
-  }, [checkId, splitSession, createSplitSession]);
+  }, [checkId, sessionId, splitSession, createSplitSession]);
 
   const method: SplitMethod = splitSession?.method || 'items';
 
@@ -71,7 +71,7 @@ export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems
           <button className={styles.backBtn} onClick={onBack}><ArrowLeft size={20} /></button>
           <div>
             <div className={styles.merchantName}>Split Payment</div>
-            <div className={styles.checkLabel}>Check #{checkId} • ₦{finalTotal.toLocaleString()} {discount > 0 && `(includes -₦${discount})`}</div>
+            <div className={styles.checkLabel}>Check #{checkId} • {formatCurrency(finalTotal)} {discount > 0 && `(includes -${formatCurrency(discount)})`}</div>
           </div>
         </div>
       </div>
@@ -107,7 +107,9 @@ export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems
                     <div className={styles.participantAvatar}>
                       {p.name.split(' ').map(n => n[0]).join('')}
                     </div>
-                    <span className={styles.participantName}>{p.name} {p.paid ? '' : '(You)'}</span>
+                    <span className={styles.participantName}>
+                      {p.name} {p.id === participantId ? '(You)' : ''}
+                    </span>
                     {p.paid && <span className={styles.participantPaid}>✓ Paid</span>}
                   </div>
                 ))}
@@ -134,11 +136,11 @@ export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems
               </button>
             </div>
             <div className={styles.splitResult}>
-              <div className={styles.splitResultAmount}>₦{equalShare.toLocaleString()}</div>
+              <div className={styles.splitResultAmount}>{formatCurrency(equalShare)}</div>
               <div className={styles.splitResultLabel}>per person</div>
             </div>
             <Button variant="accent" fullWidth size="large" onClick={() => onPayShare(equalShare)}>
-              Pay My Share ₦{equalShare.toLocaleString()}
+              Pay My Share {formatCurrency(equalShare)}
             </Button>
           </div>
         )}
@@ -157,11 +159,11 @@ export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems
               </button>
             </div>
             <div className={styles.splitResult}>
-              <div className={styles.splitResultAmount}>₦{percentShare.toLocaleString()}</div>
-              <div className={styles.splitResultLabel}>{myPercent}% of ₦{finalTotal.toLocaleString()}</div>
+              <div className={styles.splitResultAmount}>{formatCurrency(percentShare)}</div>
+              <div className={styles.splitResultLabel}>{myPercent}% of {formatCurrency(finalTotal)}</div>
             </div>
             <Button variant="accent" fullWidth size="large" onClick={() => onPayShare(percentShare)}>
-              Pay My Share ₦{percentShare.toLocaleString()}
+              Pay My Share {formatCurrency(percentShare)}
             </Button>
           </div>
         )}
@@ -171,7 +173,7 @@ export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems
           <div>
             <h4 className={styles.sectionTitle} style={{ textAlign: 'center' }}>Enter your amount</h4>
             <div style={{ marginBottom: 'var(--spacing-lg)', textAlign: 'center' }}>
-              <span style={{ fontSize: '1.5rem', fontWeight: 700, marginRight: '4px' }}>₦</span>
+              <span style={{ fontSize: '1.5rem', fontWeight: 700, marginRight: '4px' }}>{getCurrencySymbol()}</span>
               <input
                 type="number"
                 className={styles.inlineInput}
@@ -184,7 +186,7 @@ export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems
             </div>
             <div className={styles.splitResult}>
               <div className={styles.splitResultLabel}>Remaining for others</div>
-              <div className={styles.splitResultAmount}>₦{Math.max(0, finalTotal - customShare).toLocaleString()}</div>
+              <div className={styles.splitResultAmount}>{formatCurrency(Math.max(0, finalTotal - customShare))}</div>
             </div>
             <Button
               variant="accent"
@@ -193,7 +195,7 @@ export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems
               onClick={() => onPayShare(customShare)}
               disabled={customShare <= 0 || customShare > finalTotal}
             >
-              Pay ₦{customShare.toLocaleString()}
+              Pay {formatCurrency(customShare)}
             </Button>
           </div>
         )}

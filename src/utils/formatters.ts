@@ -10,6 +10,10 @@ export const formatCurrency = (amount: number): string => {
   return `₦${(amount || 0).toLocaleString()}`;
 };
 
+export const getCurrencySymbol = (): string => {
+  return formatCurrency(0).replace(/[\d.,]/g, '').trim();
+};
+
 /**
  * Alias for formatCurrency specifically for Naira.
  */

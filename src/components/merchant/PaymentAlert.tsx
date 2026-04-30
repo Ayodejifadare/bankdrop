@@ -2,19 +2,27 @@ import React, { useEffect, useRef } from 'react';
 import { useMerchant } from '../../context/MerchantContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '../ui/Button';
-import { CheckCircle2, XCircle, Landmark, CreditCard, Banknote, BellRing } from 'lucide-react';
+import { CheckCircle2, XCircle, Landmark, CreditCard, Banknote, BellRing, Loader2 } from 'lucide-react';
+import { formatCurrency, getCurrencySymbol } from '../../utils/formatters';
 import styles from './MerchantUI.module.css';
 
 export const PaymentAlert: React.FC = () => {
-  const { state, resolveVerification } = useMerchant();
+  const { state, resolveVerification, isSaving } = useMerchant();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [entryAmount, setEntryAmount] = React.useState<number | ''>('');
+  const [isResolving, setIsResolving] = React.useState(false);
 
   // Get all pending and focus on the latest one
   const pendingList = state.pendingVerifications?.filter(v => v.status === 'pending') || [];
   const activeItem = pendingList[pendingList.length - 1];
 
   const isQuickPayOpen = activeItem?.type === 'quickpay' && activeItem?.amount === 0;
+
+  // Reset entry amount when item changes to avoid leaking across notifications
+  useEffect(() => {
+    setEntryAmount('');
+    setIsResolving(false);
+  }, [activeItem?.id]);
 
   useEffect(() => {
     if (activeItem && typeof Audio !== 'undefined') {
@@ -45,16 +53,22 @@ export const PaymentAlert: React.FC = () => {
     return activeItem.type === 'check' ? `Check #${activeItem.targetId}` : `Invoice ${activeItem.targetId}`;
   };
 
-  const handleConfirm = () => {
-    if (isQuickPayOpen) {
-      if (typeof entryAmount === 'number' && entryAmount > 0) {
-        resolveVerification(activeItem.id, true, entryAmount);
-        setEntryAmount('');
+  const handleAction = async (confirmed: boolean) => {
+    setIsResolving(true);
+    try {
+      if (confirmed && isQuickPayOpen) {
+        if (typeof entryAmount === 'number' && entryAmount > 0) {
+          await resolveVerification(activeItem.id, true, entryAmount);
+        }
+      } else {
+        await resolveVerification(activeItem.id, confirmed);
       }
-    } else {
-      resolveVerification(activeItem.id, true);
+    } finally {
+      setIsResolving(false);
     }
   };
+
+  const isLoading = isSaving && isResolving;
 
   return (
     <div className={styles.notificationBanner}>
@@ -98,7 +112,7 @@ export const PaymentAlert: React.FC = () => {
               </div>
               
               <div className={styles.bannerAmount}>
-                {isQuickPayOpen ? 'Open Amount' : `₦${activeItem.amount.toLocaleString()}`}
+                {isQuickPayOpen ? 'Open Amount' : formatCurrency(activeItem.amount)}
               </div>
               
               <div className={styles.bannerDetail}>
@@ -108,12 +122,13 @@ export const PaymentAlert: React.FC = () => {
               {isQuickPayOpen && (
                 <div style={{ marginTop: '12px', marginBottom: '8px' }}>
                   <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-primary)' }}>₦</span>
+                    <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-primary)' }}>{getCurrencySymbol()}</span>
                     <input 
                       type="number"
                       placeholder="Enter amount"
                       value={entryAmount}
                       autoFocus
+                      disabled={isLoading}
                       onChange={(e) => setEntryAmount(e.target.value === '' ? '' : Number(e.target.value))}
                       style={{
                         width: '100%',
@@ -124,7 +139,8 @@ export const PaymentAlert: React.FC = () => {
                         color: 'var(--text-primary)',
                         fontWeight: 600,
                         fontSize: '0.9rem',
-                        outline: 'none'
+                        outline: 'none',
+                        opacity: isLoading ? 0.5 : 1
                       }}
                     />
                   </div>
@@ -136,8 +152,9 @@ export const PaymentAlert: React.FC = () => {
                   fullWidth 
                   size="small"
                   variant="outline" 
+                  disabled={isLoading}
                   style={{ borderColor: '#ef4444', color: '#ef4444', backgroundColor: 'transparent' }}
-                  onClick={() => resolveVerification(activeItem.id, false)}
+                  onClick={() => handleAction(false)}
                 >
                   <XCircle size={16} style={{ marginRight: '6px' }} /> Decline
                 </Button>
@@ -145,16 +162,20 @@ export const PaymentAlert: React.FC = () => {
                   fullWidth 
                   size="small"
                   variant="primary" 
-                  disabled={isQuickPayOpen && (!entryAmount || entryAmount <= 0)}
+                  disabled={isLoading || (isQuickPayOpen && (!entryAmount || entryAmount <= 0))}
                   style={{ 
-                    backgroundColor: isQuickPayOpen && (!entryAmount || entryAmount <= 0) ? 'var(--bg-tertiary)' : '#4ade80', 
+                    backgroundColor: (isLoading || (isQuickPayOpen && (!entryAmount || entryAmount <= 0))) ? 'var(--bg-tertiary)' : '#4ade80', 
                     color: '#000', 
                     border: 'none',
-                    opacity: isQuickPayOpen && (!entryAmount || entryAmount <= 0) ? 0.5 : 1
+                    opacity: (isLoading || (isQuickPayOpen && (!entryAmount || entryAmount <= 0))) ? 0.5 : 1
                   }}
-                  onClick={handleConfirm}
+                  onClick={() => handleAction(true)}
                 >
-                  <CheckCircle2 size={16} style={{ marginRight: '6px' }} /> Confirm
+                  {isLoading ? (
+                    <Loader2 size={16} className={styles.spin} />
+                  ) : (
+                    <><CheckCircle2 size={16} style={{ marginRight: '6px' }} /> Confirm</>
+                  )}
                 </Button>
               </div>
             </div>

@@ -27,7 +27,7 @@ export interface Activity {
     price: number;
   }[];
   category?: string;
-  reference?: string;
+  referenceId?: string;
 }
 
 export interface UserProfile {

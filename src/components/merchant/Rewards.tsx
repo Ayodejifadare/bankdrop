@@ -4,6 +4,7 @@ import type { Reward } from '../../types/merchant';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input, Select } from '../ui/Input';
+import { formatCurrency, getCurrencySymbol } from '../../utils/formatters';
 import styles from './MerchantUI.module.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -173,7 +174,7 @@ export const RewardsManager: React.FC<RewardsManagerProps> = ({ initialAdding, o
                         {reward.status === 'paused' && <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>PAUSED</span>}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        Spend ₦{(reward.minSpend ?? 0).toLocaleString()} → Get {reward.rewardUnit === 'cash' ? '₦' : ''}{reward.rewardValue ?? 0}{reward.rewardUnit === 'percentage' ? '%' : ''} back
+                        Spend {formatCurrency(reward.minSpend ?? 0)} → Get {reward.rewardUnit === 'cash' ? getCurrencySymbol() : ''}{reward.rewardValue ?? 0}{reward.rewardUnit === 'percentage' ? '%' : ''} back
                       </div>
                     </div>
                     {activeTab === 'active' ? (
@@ -260,7 +261,7 @@ export const RewardsManager: React.FC<RewardsManagerProps> = ({ initialAdding, o
 
               <div className={styles.responsiveGrid} style={{ marginTop: 'var(--spacing-md)' }}>
                 <Input
-                  label="Min. Spend (₦)"
+                  label={`Min. Spend (${getCurrencySymbol()})`}
                   type="number"
                   value={minSpend}
                   onChange={(e) => setMinSpend(parseInt(e.target.value) || 0)}
@@ -284,7 +285,7 @@ export const RewardsManager: React.FC<RewardsManagerProps> = ({ initialAdding, o
                       }}
                     >
                       <option value="percentage">%</option>
-                      <option value="cash">₦</option>
+                      <option value="cash">{getCurrencySymbol()}</option>
                     </select>
                   }
                 />

@@ -5,14 +5,17 @@ import './index.css'
 import { ThemeProvider } from './context/ThemeContext'
 import { MerchantProvider } from './context/MerchantContext'
 import { CustomerProvider } from './context/CustomerContext'
+import { CustomerProfileProvider } from './context/CustomerProfileContext'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
       <MerchantProvider>
-        <CustomerProvider>
-          <App />
-        </CustomerProvider>
+        <CustomerProfileProvider>
+          <CustomerProvider>
+            <App />
+          </CustomerProvider>
+        </CustomerProfileProvider>
       </MerchantProvider>
     </ThemeProvider>
   </React.StrictMode>,

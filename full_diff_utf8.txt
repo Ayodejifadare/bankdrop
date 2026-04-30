@@ -1,0 +1,2372 @@
+﻿diff --git a/diff.txt b/diff.txt
+new file mode 100644
+index 0000000..2c3cf78
+Binary files /dev/null and b/diff.txt differ
+diff --git a/diff_u0.txt b/diff_u0.txt
+new file mode 100644
+index 0000000..88726d0
+Binary files /dev/null and b/diff_u0.txt differ
+diff --git a/src/App.tsx b/src/App.tsx
+index 26e77d5..fa4e5b0 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -68,40 +68,44 @@ const App: React.FC = () => {
+ 
+   // URL Hardening: Redirect static #/check/1 to unique #/session/SESS_abc
+   useEffect(() => {
+-    if (route.view === 'customer' && route.type === 'check') {
+-      const checkIdOrSession = route.targetId;
+-      if (!checkIdOrSession || checkIdOrSession.startsWith('SESS_')) return;
++    const handleCheckRouting = async () => {
++      if (route.view === 'customer' && route.type === 'check') {
++        const checkIdOrSession = route.targetId;
++        if (!checkIdOrSession || checkIdOrSession.startsWith('SESS_')) return;
+ 
+-      // Logic to resolve session before rendering child
+-      const check = merchant.checks.find(c => c.id === checkIdOrSession);
+-      if (!check) return;
++        // Logic to resolve session before rendering child
++        const check = merchant.checks.find(c => c.id === checkIdOrSession);
++        if (!check) return;
+ 
+-      const cachedSession = localStorage.getItem(`last_session_check_${checkIdOrSession}`);
+-      const merchantSession = check.sessionId;
+-      
+-      let finalSession = merchantSession;
++        const cachedSession = localStorage.getItem(`last_session_check_${checkIdOrSession}`);
++        const merchantSession = check.sessionId;
++        
++        let finalSession = merchantSession;
+ 
+-      // ACTIVE SHIELD: Protect existing orders from strangers
+-      if (merchantSession && cachedSession !== merchantSession && check.status === 'active') {
+-        window.location.hash = `#/occupied/${checkIdOrSession}`;
+-        return;
+-      }
++        // ACTIVE SHIELD: Protect existing orders from strangers
++        if (merchantSession && cachedSession !== merchantSession && check.status === 'active') {
++          window.location.hash = `#/occupied/${checkIdOrSession}`;
++          return;
++        }
+ 
+-      // START NEW SESSION IF:
+-      // 1. Check has no session at all
+-      // 2. OR User is a "New Initiator" on an OPEN/EMPTY check (safe to overwrite)
+-      if (!merchantSession || (cachedSession !== merchantSession)) {
+-        finalSession = startCheckSession(checkIdOrSession);
+-      }
++        // START NEW SESSION IF:
++        // 1. Check has no session at all
++        // 2. OR User is a "New Initiator" on an OPEN/EMPTY check (safe to overwrite)
++        if (!merchantSession || (cachedSession !== merchantSession)) {
++          finalSession = await startCheckSession(checkIdOrSession);
++        }
+ 
+-      if (finalSession) {
+-        setIsRedirecting(true);
+-        setSessionId(finalSession);
+-        setCheckId(checkIdOrSession);
+-        localStorage.setItem(`last_session_check_${checkIdOrSession}`, finalSession);
+-        window.location.hash = `#/session/${finalSession}`;
++        if (finalSession) {
++          setIsRedirecting(true);
++          setSessionId(finalSession);
++          setCheckId(checkIdOrSession);
++          localStorage.setItem(`last_session_check_${checkIdOrSession}`, finalSession);
++          window.location.hash = `#/session/${finalSession}`;
++        }
+       }
+-    }
++    };
++
++    handleCheckRouting();
+   }, [route, merchant.checks, setSessionId, setCheckId, startCheckSession]);
+ 
+   const navigate = (hash: string) => {
+diff --git a/src/api/dataService.ts b/src/api/dataService.ts
+new file mode 100644
+index 0000000..9da6d9e
+--- /dev/null
++++ b/src/api/dataService.ts
+@@ -0,0 +1,135 @@
++import { STORAGE_KEYS } from '../utils/constants';
++import type { MerchantState } from '../types/merchant';
++import type { SplitSession } from '../types/checkout';
++import type { UserProfile, LinkedAccount, Activity } from '../types/profile';
++import { realtimeService, type RealtimeEvent } from './realtimeService';
++
++const simulateDelay = () => new Promise(resolve => setTimeout(resolve, 0));
++
++/**
++ * MERCHANT SERVICE
++ * Handles business operations, bank accounts, and order history.
++ * Can be scaled independently or moved to a dedicated business backend.
++ */
++class MerchantService {
++  async saveState(state: MerchantState, source = 'local'): Promise<void> {
++    await simulateDelay();
++    localStorage.setItem(STORAGE_KEYS.MERCHANT_STATE, JSON.stringify(state));
++    realtimeService.notify('STATE_CHANGED', { source });
++  }
++
++  /**
++   * ATOMIC PATCH
++   * Fetches latest state, applies updates, and saves in one flow.
++   * Reduces race conditions between Menu and Ops providers.
++   */
++  async patchState(update: Partial<MerchantState> | ((current: MerchantState) => MerchantState), source = 'local'): Promise<MerchantState> {
++    await simulateDelay();
++    const saved = localStorage.getItem(STORAGE_KEYS.MERCHANT_STATE);
++    const current: MerchantState = saved ? JSON.parse(saved) : ({} as MerchantState);
++    
++    const next = typeof update === 'function' ? update(current) : { ...current, ...update };
++    
++    localStorage.setItem(STORAGE_KEYS.MERCHANT_STATE, JSON.stringify(next));
++    realtimeService.notify('STATE_CHANGED', { source });
++    return next;
++  }
++
++  async fetchState(): Promise<MerchantState | null> {
++    await simulateDelay();
++    const saved = localStorage.getItem(STORAGE_KEYS.MERCHANT_STATE);
++    return saved ? JSON.parse(saved) : null;
++  }
++}
++
++/**
++ * CUSTOMER CHECKOUT SERVICE
++ * Handles real-time split sessions and guest interactions.
++ * Optimized for high-concurrency and real-time synchronization.
++ */
++class CustomerService {
++  async saveSplitSession(session: SplitSession, source = 'local'): Promise<void> {
++    await simulateDelay();
++    const sessionId = session.id || session.checkId;
++    const key = `check_split_${sessionId}`;
++    localStorage.setItem(key, JSON.stringify(session));
++    realtimeService.notify('SESSION_UPDATED', { sessionId, session, source });
++  }
++
++  async fetchSplitSession(sessionId: string): Promise<SplitSession | null> {
++    await simulateDelay();
++    const key = `check_split_${sessionId}`;
++    const saved = localStorage.getItem(key);
++    return saved ? JSON.parse(saved) : null;
++  }
++
++  async clearSplitSession(sessionId: string): Promise<void> {
++    await simulateDelay();
++    localStorage.removeItem(`check_split_${sessionId}`);
++  }
++
++  subscribeToSplitSession(sessionId: string, callback: (session: SplitSession) => void): () => void {
++    return realtimeService.subscribe('SESSION_UPDATED', (event: RealtimeEvent) => {
++      if (event.payload?.sessionId === sessionId && event.payload?.session) {
++        callback(event.payload.session);
++      }
++    });
++  }
++}
++
++/**
++ * CUSTOMER PROFILE SERVICE
++ * Handles identity, wallet management, and cross-vendor activity.
++ * Can be integrated with centralized Auth/Identity providers.
++ */
++class ProfileService {
++  async saveProfile(user: UserProfile | null, authenticated: boolean): Promise<void> {
++    await simulateDelay();
++    if (user) {
++      localStorage.setItem(STORAGE_KEYS.CUSTOMER_PROFILE, JSON.stringify(user));
++    } else {
++      localStorage.removeItem(STORAGE_KEYS.CUSTOMER_PROFILE);
++    }
++    localStorage.setItem(STORAGE_KEYS.CUSTOMER_AUTH, authenticated.toString());
++    realtimeService.notify('PROFILE_UPDATED', { key: STORAGE_KEYS.CUSTOMER_PROFILE, source: 'profile' });
++  }
++
++  async fetchProfile(): Promise<{ user: UserProfile | null; isAuthenticated: boolean }> {
++    await simulateDelay();
++    const userSaved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_PROFILE);
++    const authSaved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_AUTH) === 'true';
++    return {
++      user: userSaved ? JSON.parse(userSaved) : null,
++      isAuthenticated: authSaved
++    };
++  }
++
++  async saveWallet(wallet: LinkedAccount[]): Promise<void> {
++    await simulateDelay();
++    localStorage.setItem(STORAGE_KEYS.CUSTOMER_WALLET, JSON.stringify(wallet));
++    realtimeService.notify('PROFILE_UPDATED', { key: STORAGE_KEYS.CUSTOMER_WALLET, source: 'profile' });
++  }
++
++  async fetchWallet(): Promise<LinkedAccount[] | null> {
++    await simulateDelay();
++    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_WALLET);
++    return saved ? JSON.parse(saved) : null;
++  }
++
++  async saveActivities(activities: Activity[]): Promise<void> {
++    await simulateDelay();
++    localStorage.setItem(STORAGE_KEYS.CUSTOMER_ACTIVITIES, JSON.stringify(activities));
++    realtimeService.notify('PROFILE_UPDATED', { key: STORAGE_KEYS.CUSTOMER_ACTIVITIES, source: 'profile' });
++  }
++
++  async fetchActivities(): Promise<Activity[] | null> {
++    await simulateDelay();
++    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_ACTIVITIES);
++    return saved ? JSON.parse(saved) : null;
++  }
++}
++
++export const merchantService = new MerchantService();
++export const customerService = new CustomerService();
++export const profileService = new ProfileService();
++export { realtimeService };
+diff --git a/src/api/full_diff.txt b/src/api/full_diff.txt
+new file mode 100644
+index 0000000..2c3cf78
+Binary files /dev/null and b/src/api/full_diff.txt differ
+diff --git a/src/api/realtimeService.ts b/src/api/realtimeService.ts
+new file mode 100644
+index 0000000..92a3853
+--- /dev/null
++++ b/src/api/realtimeService.ts
+@@ -0,0 +1,97 @@
++import { STORAGE_KEYS } from '../utils/constants';
++
++export type EventType = 'STATE_CHANGED' | 'NEW_VERIFICATION' | 'PAYMENT_RECEIVED' | 'SESSION_UPDATED' | 'PROFILE_UPDATED';
++
++export interface RealtimeEvent {
++  type: EventType;
++  payload?: any;
++  timestamp: number;
++}
++
++export type EventCallback = (event: RealtimeEvent) => void;
++
++class RealtimeService {
++  private subscribers: Map<EventType, Set<EventCallback>> = new Map();
++
++  constructor() {
++    if (typeof window !== 'undefined') {
++      window.addEventListener('storage', this.handleStorageChange.bind(this));
++    }
++  }
++
++  private handleStorageChange(event: StorageEvent) {
++    if (!event.key) return;
++
++    // Detect changes to Merchant State
++    if (event.key === STORAGE_KEYS.MERCHANT_STATE) {
++      this.notify('STATE_CHANGED', { 
++        source: 'storage_event',
++        oldValue: event.oldValue,
++        newValue: event.newValue 
++      });
++
++      // If a new verification was added
++      try {
++        const next = JSON.parse(event.newValue || '{}');
++        const prev = JSON.parse(event.oldValue || '{}');
++        if (next.pendingVerifications?.length > (prev.pendingVerifications?.length || 0)) {
++          this.notify('NEW_VERIFICATION', next.pendingVerifications[next.pendingVerifications.length - 1]);
++        }
++      } catch (e) {
++        // Silently fail
++      }
++    }
++
++    // Detect changes to Split Sessions
++    if (event.key.startsWith('check_split_')) {
++      const sessionId = event.key.replace('check_split_', '');
++      try {
++        const session = JSON.parse(event.newValue || 'null');
++        this.notify('SESSION_UPDATED', { sessionId, session, source: 'storage_event' });
++      } catch (e) {
++        // Silently fail
++      }
++    }
++
++    // Detect changes to Customer Profile data
++    if ([STORAGE_KEYS.CUSTOMER_PROFILE, STORAGE_KEYS.CUSTOMER_WALLET, STORAGE_KEYS.CUSTOMER_ACTIVITIES].includes(event.key as any)) {
++      this.notify('PROFILE_UPDATED', { key: event.key, source: 'storage_event' });
++    }
++  }
++
++  /**
++   * Subscribe to real-time events.
++   * Returns an unsubscribe function.
++   */
++  subscribe(type: EventType, callback: EventCallback): () => void {
++    if (!this.subscribers.has(type)) {
++      this.subscribers.set(type, new Set());
++    }
++    this.subscribers.get(type)!.add(callback);
++
++    return () => {
++      this.subscribers.get(type)?.delete(callback);
++    };
++  }
++
++  /**
++   * Manually notify subscribers (used for local tab events)
++   */
++  notify(type: EventType, payload?: any) {
++    const event: RealtimeEvent = {
++      type,
++      payload,
++      timestamp: Date.now()
++    };
++
++    this.subscribers.get(type)?.forEach(callback => {
++      try {
++        callback(event);
++      } catch (err) {
++        console.error(`Error in realtime subscriber for ${type}:`, err);
++      }
++    });
++  }
++}
++
++export const realtimeService = new RealtimeService();
+diff --git a/src/components/customer/CustomerApp.tsx b/src/components/customer/CustomerApp.tsx
+index 1108a27..b65ead0 100644
+--- a/src/components/customer/CustomerApp.tsx
++++ b/src/components/customer/CustomerApp.tsx
+@@ -20,7 +20,7 @@ interface Props {
+ 
+ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
+   const { state: merchant } = useMerchant();
+-  const { setCheckId, setSessionId, splitSession, joinSplitSession, clearSession, removeSessionReward, participantId } = useCustomer();
++  const { setCheckId, setSessionId, splitSession, joinSplitSession, removeSessionReward, participantId } = useCustomer();
+   const { isAuthenticated, user } = useCustomerProfile();
+   const [screen, setScreen] = useState<Screen>('cart');
+   const [payAmount, setPayAmount] = useState(0);
+@@ -28,6 +28,7 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
+ 
+   const { check, archivedOrder, type: resolvedType } = useResolvedCheck(targetId);
+ 
++
+   // Logout / Session Protection
+   useEffect(() => {
+     if (!isAuthenticated && splitSession?.appliedBy) {
+@@ -40,6 +41,13 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
+ 
+   // Robust Screen Logic
+   useEffect(() => {
++    // SYNC UPDATE: If the total changes, update payAmount ONLY if we are still on selection screens
++    if (check && (screen === 'cart' || screen === 'pick' || screen === 'split')) {
++      setPayAmount(check.total);
++    }
++
++    if (isInitialized) return;
++
+     if (type === 'quickpay') {
+       setPayAmount(0);
+       setScreen('pay');
+@@ -66,10 +74,11 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
+       const checkIdOrSession = targetId;
+ 
+       if (resolvedType === 'archived' && archivedOrder) {
++        // For older guests returning to a receipt
+         setSessionId(checkIdOrSession);
+         setCheckId(archivedOrder.checkId);
+         setPayAmount(archivedOrder.total);
+-        setScreen('pay');
++        setScreen('pay'); // PayTransfer handles the receipt view for archived
+         setIsInitialized(true);
+         return;
+       }
+@@ -92,7 +101,7 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
+         }
+ 
+         const savedSplit = localStorage.getItem(`check_split_${activeSession}`);
+-        if (savedSplit && !isInitialized) {
++        if (savedSplit) {
+           joinSplitSession(activeSession);
+           setScreen('pick');
+         }
+@@ -100,9 +109,7 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
+ 
+       setIsInitialized(true);
+     }
+-  }, [type, targetId, merchant.invoices, merchant.checks, setCheckId, joinSplitSession, clearSession, isInitialized, resolvedType, check, archivedOrder]);
+-
+-  if (!isInitialized) return null;
++  }, [type, targetId, merchant.invoices, merchant.checks, setCheckId, setSessionId, joinSplitSession, isInitialized, resolvedType, check, archivedOrder, screen]);
+ 
+   if (type === 'occupied') {
+     return <TableOccupied checkId={targetId} onBack={onExit} />;
+diff --git a/src/components/customer/PayTransfer.tsx b/src/components/customer/PayTransfer.tsx
+index bddb937..a85a6d5 100644
+--- a/src/components/customer/PayTransfer.tsx
++++ b/src/components/customer/PayTransfer.tsx
+@@ -106,6 +106,19 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
+     return () => clearInterval(timer);
+   }, [isPaid, confirmed]);
+ 
++  // AUTO-SUCCESS: Listen for merchant confirmation
++  useEffect(() => {
++    if (isPaid && !confirmed) {
++      setConfirmed(true);
++      // Small delay to let the state settle before showing receipt
++      setTimeout(() => {
++        if (typeof onDone === 'function' && !isPaid) {
++           // This is just a safety check
++        }
++      }, 500);
++    }
++  }, [isPaid, confirmed]);
++
+   const formatTime = (s: number) => {
+     const m = Math.floor(s / 60);
+     const sec = s % 60;
+@@ -305,7 +318,7 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
+             </div>
+ 
+             <div style={{ textAlign: 'center', marginTop: '32px', fontSize: '12px', fontStyle: 'italic', fontWeight: 'bold' }}>
+-              Thank you for your patro!
++              Thank you for your patronage!
+             </div>
+             <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '10px', color: '#666' }}>
+               Powered by Bankdrop
+diff --git a/src/components/merchant/ActivityLog.tsx b/src/components/merchant/ActivityLog.tsx
+index cb311df..f415976 100644
+--- a/src/components/merchant/ActivityLog.tsx
++++ b/src/components/merchant/ActivityLog.tsx
+@@ -58,7 +58,8 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
+ 
+   const getDetails = (activity: MerchantActivity) => {
+     if (activity.type === 'check_payment') {
+-      return orderHistory.find(oh => oh.id === activity.referenceId);
++      // Lookup by sessionId (which is our referenceId) in orderHistory
++      return orderHistory.find(oh => oh.sessionId === activity.referenceId || oh.id === activity.referenceId);
+     } else if (activity.type === 'invoice_payment') {
+       return invoices.find(inv => inv.id === activity.referenceId);
+     } else if (activity.type === 'quickpay') {
+@@ -186,14 +187,15 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
+                               </div>
+                             ) : 'orders' in details && details.orders ? (
+                               details.orders.map((order: any, i: number) => {
+-                                const item = menu.find(m => m.id === order.menuItemId);
++                                const menuItem = menu.find(m => m.id === order.menuItemId);
++                                const price = order.priceAtOrder || menuItem?.price || 0;
+                                 return (
+                                   <div key={i} className={styles.detailRow}>
+                                     <div>
+-                                      <div className={styles.detailName}>{item?.name || 'Unknown Item'}</div>
+-                                      <div className={styles.detailQty}>{order.quantity} x {formatCurrency(item?.price || 0)}</div>
++                                      <div className={styles.detailName}>{menuItem?.name || 'Unknown Item'}</div>
++                                      <div className={styles.detailQty}>{order.quantity} x {formatCurrency(price)}</div>
+                                     </div>
+-                                    <div className={styles.detailPrice}>{formatCurrency((item?.price || 0) * order.quantity)}</div>
++                                    <div className={styles.detailPrice}>{formatCurrency(price * order.quantity)}</div>
+                                   </div>
+                                 );
+                               })
+@@ -252,10 +254,11 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
+                                 ) : 'orders' in details ? (
+                                   details.orders.map((o: any, i: number) => {
+                                     const menuItem = menu.find(m => m.id === o.menuItemId);
++                                    const price = o.priceAtOrder || menuItem?.price || 0;
+                                     return (
+                                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+-                                        <span>{o.quantity} {menuItem?.name}</span>
+-                                        <span>Γéª{((menuItem?.price || 0) * o.quantity).toLocaleString()}</span>
++                                        <span>{o.quantity} {menuItem?.name || 'Unknown'}</span>
++                                        <span>Γéª{(price * o.quantity).toLocaleString()}</span>
+                                       </div>
+                                     );
+                                   })
+diff --git a/src/components/merchant/MerchantApp.tsx b/src/components/merchant/MerchantApp.tsx
+index 37a5f7c..1a51fe6 100644
+--- a/src/components/merchant/MerchantApp.tsx
++++ b/src/components/merchant/MerchantApp.tsx
+@@ -41,7 +41,7 @@ const viewToTab = (view: MerchantView): number => {
+ 
+ // Main Layout Wrapper
+ export const MerchantApp: React.FC = () => {
+-  const { state, isAuthenticated } = useMerchant();
++  const { state, isAuthenticated, isSaving } = useMerchant();
+   const [currentView, setCurrentView] = useState<MerchantView>('dashboard');
+   const [isActionHubOpen, setIsActionHubOpen] = useState(false);
+   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+@@ -59,12 +59,14 @@ export const MerchantApp: React.FC = () => {
+     return <MerchantAuth />;
+   }
+ 
++
+   // If business info or bank info isn't linked, force onboarding
+   if (state.bankAccounts.length === 0 || !state.businessCategory) {
+     return (
+       <div className={styles.merchantLayout}>
+         <div className={styles.header}>
+           <div className={styles.title}>BANKDROP MERCHANT</div>
++          {isSaving && <div className={styles.syncIndicator}>Saving...</div>}
+         </div>
+         <div className={styles.content}>
+           <MerchantOnboarding />
+@@ -172,6 +174,17 @@ export const MerchantApp: React.FC = () => {
+           </div>
+         )}
+         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
++          {isSaving && (
++            <motion.div 
++              initial={{ opacity: 0 }}
++              animate={{ opacity: 1 }}
++              className={styles.syncIndicator}
++              style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}
++            >
++              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--brand-accent)' }} />
++              Syncing...
++            </motion.div>
++          )}
+           <motion.button 
+             whileTap={{ scale: 0.9 }} 
+             onClick={() => navigateTo('profile')}
+diff --git a/src/components/merchant/MerchantUI.module.css b/src/components/merchant/MerchantUI.module.css
+index e86c04c..17bc7d8 100644
+--- a/src/components/merchant/MerchantUI.module.css
++++ b/src/components/merchant/MerchantUI.module.css
+@@ -25,6 +25,22 @@
+   letter-spacing: -0.04em;
+ }
+ 
++.syncIndicator {
++  font-size: 0.75rem;
++  color: var(--text-secondary);
++  font-weight: 600;
++  display: flex;
++  align-items: center;
++  gap: 6px;
++  animation: pulse 2s infinite ease-in-out;
++}
++
++@keyframes pulse {
++  0% { opacity: 0.6; }
++  50% { opacity: 1; }
++  100% { opacity: 0.6; }
++}
++
+ .content {
+   flex: 1;
+   overflow-y: auto;
+@@ -1196,3 +1212,12 @@
+   text-transform: uppercase;
+   letter-spacing: 0.02em;
+ }
++
++.spin {
++  animation: spin 1s linear infinite;
++}
++
++@keyframes spin {
++  from { transform: rotate(0deg); }
++  to { transform: rotate(360deg); }
++}
+diff --git a/src/components/merchant/NotificationCenter.tsx b/src/components/merchant/NotificationCenter.tsx
+index d653c78..6c8d7c6 100644
+--- a/src/components/merchant/NotificationCenter.tsx
++++ b/src/components/merchant/NotificationCenter.tsx
+@@ -1,9 +1,10 @@
+ import React from 'react';
+ import { useMerchant } from '../../context/MerchantContext';
+ import { motion, AnimatePresence } from 'framer-motion';
+-import { X, Bell, Landmark, CreditCard, Banknote, CheckCircle2, XCircle } from 'lucide-react';
++import { X, Bell, Landmark, CreditCard, Banknote, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+ import { Button } from '../ui/Button';
+ import { Card } from '../ui/Card';
++import type { PendingVerification } from '../../types/merchant';
+ import styles from './MerchantUI.module.css';
+ 
+ interface NotificationCenterProps {
+@@ -12,12 +13,14 @@ interface NotificationCenterProps {
+ }
+ 
+ interface NotificationItemProps {
+-  item: any;
++  item: PendingVerification;
++  isSaving: boolean;
+   onResolve: (id: string, confirmed: boolean, amount?: number) => void;
+ }
+ 
+-const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve }) => {
++const NotificationItem: React.FC<NotificationItemProps> = ({ item, isSaving, onResolve }) => {
+   const [entryAmount, setEntryAmount] = React.useState<number | ''>('');
++  const [isResolving, setIsResolving] = React.useState(false);
+   const isQuickPayOpen = item.type === 'quickpay' && item.amount === 0;
+ 
+   const getIcon = (method: string) => {
+@@ -34,16 +37,23 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve })
+     return item.type === 'check' ? `Check #${item.targetId}` : `Invoice ${item.targetId}`;
+   };
+ 
+-  const handleConfirm = () => {
+-    if (isQuickPayOpen) {
+-      if (typeof entryAmount === 'number' && entryAmount > 0) {
+-        onResolve(item.id, true, entryAmount);
++  const handleAction = async (confirmed: boolean) => {
++    setIsResolving(true);
++    try {
++      if (confirmed && isQuickPayOpen) {
++        if (typeof entryAmount === 'number' && entryAmount > 0) {
++          await onResolve(item.id, true, entryAmount);
++        }
++      } else {
++        await onResolve(item.id, confirmed);
+       }
+-    } else {
+-      onResolve(item.id, true);
++    } finally {
++      setIsResolving(false);
+     }
+   };
+ 
++  const isLoading = isSaving && isResolving;
++
+   return (
+     <Card style={{ padding: '16px', borderLeft: '4px solid var(--brand-accent)' }}>
+       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+@@ -83,6 +93,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve })
+             <input 
+               type="number"
+               placeholder="0.00"
++              disabled={isLoading}
+               value={entryAmount}
+               onChange={(e) => setEntryAmount(e.target.value === '' ? '' : Number(e.target.value))}
+               style={{
+@@ -94,7 +105,8 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve })
+                 color: 'var(--text-primary)',
+                 fontWeight: 600,
+                 fontSize: '1.25rem',
+-                outline: 'none'
++                outline: 'none',
++                opacity: isLoading ? 0.5 : 1
+               }}
+             />
+           </div>
+@@ -106,8 +118,9 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve })
+           fullWidth 
+           size="small" 
+           variant="outline"
++          disabled={isLoading}
+           style={{ borderColor: '#ef4444', color: '#ef4444', padding: '8px' }}
+-          onClick={() => onResolve(item.id, false)}
++          onClick={() => handleAction(false)}
+         >
+           <XCircle size={14} style={{ marginRight: '6px' }} /> Decline
+         </Button>
+@@ -115,16 +128,20 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve })
+           fullWidth 
+           size="small" 
+           variant="primary"
+-          disabled={isQuickPayOpen && (!entryAmount || entryAmount <= 0)}
++          disabled={isLoading || (isQuickPayOpen && (!entryAmount || entryAmount <= 0))}
+           style={{ 
+-            backgroundColor: isQuickPayOpen && (!entryAmount || entryAmount <= 0) ? 'var(--bg-tertiary)' : '#4ade80', 
++            backgroundColor: (isLoading || (isQuickPayOpen && (!entryAmount || entryAmount <= 0))) ? 'var(--bg-tertiary)' : '#4ade80', 
+             color: '#000', 
+             border: 'none', 
+             padding: '8px' 
+           }}
+-          onClick={handleConfirm}
++          onClick={() => handleAction(true)}
+         >
+-          <CheckCircle2 size={14} style={{ marginRight: '6px' }} /> Confirm
++          {isLoading ? (
++            <Loader2 size={14} className={styles.spin} />
++          ) : (
++            <><CheckCircle2 size={14} style={{ marginRight: '6px' }} /> Confirm</>
++          )}
+         </Button>
+       </div>
+     </Card>
+@@ -132,7 +149,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve })
+ };
+ 
+ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose }) => {
+-  const { state, resolveVerification } = useMerchant();
++  const { state, resolveVerification, isSaving } = useMerchant();
+   const pending = state.pendingVerifications?.filter(v => v.status === 'pending') || [];
+ 
+   return (
+@@ -190,6 +207,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen,
+                     <NotificationItem 
+                       key={item.id} 
+                       item={item} 
++                      isSaving={isSaving}
+                       onResolve={resolveVerification} 
+                     />
+                   ))}
+diff --git a/src/components/merchant/PaymentAlert.tsx b/src/components/merchant/PaymentAlert.tsx
+index ff1be2f..c4a3125 100644
+--- a/src/components/merchant/PaymentAlert.tsx
++++ b/src/components/merchant/PaymentAlert.tsx
+@@ -2,13 +2,14 @@ import React, { useEffect, useRef } from 'react';
+ import { useMerchant } from '../../context/MerchantContext';
+ import { motion, AnimatePresence } from 'framer-motion';
+ import { Button } from '../ui/Button';
+-import { CheckCircle2, XCircle, Landmark, CreditCard, Banknote, BellRing } from 'lucide-react';
++import { CheckCircle2, XCircle, Landmark, CreditCard, Banknote, BellRing, Loader2 } from 'lucide-react';
+ import styles from './MerchantUI.module.css';
+ 
+ export const PaymentAlert: React.FC = () => {
+-  const { state, resolveVerification } = useMerchant();
++  const { state, resolveVerification, isSaving } = useMerchant();
+   const audioRef = useRef<HTMLAudioElement | null>(null);
+   const [entryAmount, setEntryAmount] = React.useState<number | ''>('');
++  const [isResolving, setIsResolving] = React.useState(false);
+ 
+   // Get all pending and focus on the latest one
+   const pendingList = state.pendingVerifications?.filter(v => v.status === 'pending') || [];
+@@ -16,6 +17,12 @@ export const PaymentAlert: React.FC = () => {
+ 
+   const isQuickPayOpen = activeItem?.type === 'quickpay' && activeItem?.amount === 0;
+ 
++  // Reset entry amount when item changes to avoid leaking across notifications
++  useEffect(() => {
++    setEntryAmount('');
++    setIsResolving(false);
++  }, [activeItem?.id]);
++
+   useEffect(() => {
+     if (activeItem && typeof Audio !== 'undefined') {
+       try {
+@@ -45,17 +52,23 @@ export const PaymentAlert: React.FC = () => {
+     return activeItem.type === 'check' ? `Check #${activeItem.targetId}` : `Invoice ${activeItem.targetId}`;
+   };
+ 
+-  const handleConfirm = () => {
+-    if (isQuickPayOpen) {
+-      if (typeof entryAmount === 'number' && entryAmount > 0) {
+-        resolveVerification(activeItem.id, true, entryAmount);
+-        setEntryAmount('');
++  const handleAction = async (confirmed: boolean) => {
++    setIsResolving(true);
++    try {
++      if (confirmed && isQuickPayOpen) {
++        if (typeof entryAmount === 'number' && entryAmount > 0) {
++          await resolveVerification(activeItem.id, true, entryAmount);
++        }
++      } else {
++        await resolveVerification(activeItem.id, confirmed);
+       }
+-    } else {
+-      resolveVerification(activeItem.id, true);
++    } finally {
++      setIsResolving(false);
+     }
+   };
+ 
++  const isLoading = isSaving && isResolving;
++
+   return (
+     <div className={styles.notificationBanner}>
+       <AnimatePresence mode="wait">
+@@ -114,6 +127,7 @@ export const PaymentAlert: React.FC = () => {
+                       placeholder="Enter amount"
+                       value={entryAmount}
+                       autoFocus
++                      disabled={isLoading}
+                       onChange={(e) => setEntryAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                       style={{
+                         width: '100%',
+@@ -124,7 +138,8 @@ export const PaymentAlert: React.FC = () => {
+                         color: 'var(--text-primary)',
+                         fontWeight: 600,
+                         fontSize: '0.9rem',
+-                        outline: 'none'
++                        outline: 'none',
++                        opacity: isLoading ? 0.5 : 1
+                       }}
+                     />
+                   </div>
+@@ -136,8 +151,9 @@ export const PaymentAlert: React.FC = () => {
+                   fullWidth 
+                   size="small"
+                   variant="outline" 
++                  disabled={isLoading}
+                   style={{ borderColor: '#ef4444', color: '#ef4444', backgroundColor: 'transparent' }}
+-                  onClick={() => resolveVerification(activeItem.id, false)}
++                  onClick={() => handleAction(false)}
+                 >
+                   <XCircle size={16} style={{ marginRight: '6px' }} /> Decline
+                 </Button>
+@@ -145,16 +161,20 @@ export const PaymentAlert: React.FC = () => {
+                   fullWidth 
+                   size="small"
+                   variant="primary" 
+-                  disabled={isQuickPayOpen && (!entryAmount || entryAmount <= 0)}
++                  disabled={isLoading || (isQuickPayOpen && (!entryAmount || entryAmount <= 0))}
+                   style={{ 
+-                    backgroundColor: isQuickPayOpen && (!entryAmount || entryAmount <= 0) ? 'var(--bg-tertiary)' : '#4ade80', 
++                    backgroundColor: (isLoading || (isQuickPayOpen && (!entryAmount || entryAmount <= 0))) ? 'var(--bg-tertiary)' : '#4ade80', 
+                     color: '#000', 
+                     border: 'none',
+-                    opacity: isQuickPayOpen && (!entryAmount || entryAmount <= 0) ? 0.5 : 1
++                    opacity: (isLoading || (isQuickPayOpen && (!entryAmount || entryAmount <= 0))) ? 0.5 : 1
+                   }}
+-                  onClick={handleConfirm}
++                  onClick={() => handleAction(true)}
+                 >
+-                  <CheckCircle2 size={16} style={{ marginRight: '6px' }} /> Confirm
++                  {isLoading ? (
++                    <Loader2 size={16} className={styles.spin} />
++                  ) : (
++                    <><CheckCircle2 size={16} style={{ marginRight: '6px' }} /> Confirm</>
++                  )}
+                 </Button>
+               </div>
+             </div>
+diff --git a/src/context/CustomerContext.tsx b/src/context/CustomerContext.tsx
+index 7262a70..95964bc 100644
+--- a/src/context/CustomerContext.tsx
++++ b/src/context/CustomerContext.tsx
+@@ -1,5 +1,8 @@
+ import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+ import type { SplitSession, Participant, SplitMethod } from '../types/checkout';
++import { customerService } from '../api/dataService';
++import { generateSimpleId } from '../utils/idUtils';
++import { STORAGE_KEYS } from '../utils/constants';
+ 
+ interface CustomerContextType {
+   checkId: string | null;
+@@ -8,42 +11,50 @@ interface CustomerContextType {
+   participantId: string;
+   isSignedIn: boolean;
+   appliedRewardId: string | null;
++  isSaving: boolean;
++  isLoading: boolean;
+   setCheckId: (id: string | null) => void;
+   setSessionId: (id: string | null) => void;
+   setSignedIn: (v: boolean) => void;
+   applyReward: (id: string | null) => void;
+-  createSplitSession: (checkId: string, method: SplitMethod) => SplitSession;
+-  joinSplitSession: (checkId: string) => SplitSession | null;
+-  updateParticipant: (sessionId: string, participant: Participant) => void;
+-  changeSplitMethod: (method: SplitMethod) => void;
+-  applySessionReward: (amount: number, name: string) => void;
+-  removeSessionReward: () => void;
+-  markPaid: () => void;
+-  clearSession: (checkId: string) => void;
++  createSplitSession: (checkId: string, method: SplitMethod) => Promise<SplitSession>;
++  joinSplitSession: (checkId: string) => Promise<SplitSession | null>;
++  updateParticipant: (sessionId: string, participant: Participant) => Promise<void>;
++  changeSplitMethod: (method: SplitMethod) => Promise<void>;
++  applySessionReward: (amount: number, name: string) => Promise<void>;
++  removeSessionReward: () => Promise<void>;
++  markPaid: () => Promise<void>;
++  clearSession: (checkId: string) => Promise<void>;
+   syncError: string | null;
+ }
+ 
+ const CustomerContext = createContext<CustomerContextType | undefined>(undefined);
+ 
+-function generateId() {
+-  return Math.random().toString(36).substring(2, 10);
+-}
+-
+ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+   const [participantId] = useState(() => {
+-    const saved = sessionStorage.getItem('participant_id');
++    const saved = sessionStorage.getItem(STORAGE_KEYS.PARTICIPANT_ID);
+     if (saved) return saved;
+-    const id = generateId();
+-    sessionStorage.setItem('participant_id', id);
++    const id = generateSimpleId();
++    sessionStorage.setItem(STORAGE_KEYS.PARTICIPANT_ID, id);
+     return id;
+   });
+ 
+   const [checkId, setCheckId] = useState<string | null>(null);
+   const [sessionId, setSessionId] = useState<string | null>(null);
+-  const [splitSession, setSplitSession] = useState<SplitSession | null>(null);
++  const [splitSession, setSplitSession] = useState<SplitSession | null>(() => {
++    const hash = window.location.hash;
++    const sId = hash.includes('/session/') ? hash.split('/session/')[1]?.split('?')[0] : null;
++    if (sId) {
++      const saved = localStorage.getItem(`check_split_${sId}`);
++      return saved ? JSON.parse(saved) : null;
++    }
++    return null;
++  });
+   const [isSignedIn, setSignedIn] = useState(false);
+   const [appliedRewardId, setAppliedRewardId] = useState<string | null>(null);
+   const [syncError, setSyncError] = useState<string | null>(null);
++  const [isSaving, setIsSaving] = useState(false);
++  const [isLoading, setIsLoading] = useState(false);
+ 
+   // Auto-clear sync errors
+   useEffect(() => {
+@@ -53,41 +64,47 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
+     }
+   }, [syncError]);
+ 
+-  // Load split session from localStorage when sessionId changes
++  // Background Revalidation
+   useEffect(() => {
+     if (sessionId) {
+-      const saved = localStorage.getItem(`check_split_${sessionId}`);
+-      if (saved) {
+-        // eslint-disable-next-line react-hooks/set-state-in-effect
+-        setSplitSession(JSON.parse(saved));
+-      } else {
+-        setSplitSession(null);
+-      }
++      const loadSession = async () => {
++        const saved = await customerService.fetchSplitSession(sessionId);
++        if (saved) setSplitSession(saved);
++      };
++      loadSession();
+     }
+   }, [sessionId]);
+ 
+-  // LIVE SYNC: Listen for storage events from other tabs to keep multiplayer state in sync
++  // LIVE SYNC: Subscribe to dataService updates
+   useEffect(() => {
+-    const handleStorageChange = (e: StorageEvent) => {
+-      if (sessionId && e.key === `check_split_${sessionId}` && e.newValue) {
+-        setSplitSession(JSON.parse(e.newValue));
+-      }
+-    };
+-
+-    window.addEventListener('storage', handleStorageChange);
+-    return () => window.removeEventListener('storage', handleStorageChange);
++    if (!sessionId) return;
++    return customerService.subscribeToSplitSession(sessionId, (updated) => {
++      setSplitSession(updated);
++    });
+   }, [sessionId]);
+ 
+-  // Persist split session changes
+-  const persistSession = useCallback((session: SplitSession) => {
+-    const keyId = sessionId || session.checkId;
+-    localStorage.setItem(`check_split_${keyId}`, JSON.stringify(session));
+-    setSplitSession(session);
+-  }, [sessionId]);
++  // Persist State Helper
++  const performSessionUpdate = useCallback(async (updater: (cur: SplitSession) => SplitSession) => {
++    const keyId = sessionId || checkId;
++    if (!keyId) return;
++    setIsSaving(true);
++    try {
++      const current = await customerService.fetchSplitSession(keyId);
++      if (!current) return;
++      const next = updater(current);
++      await customerService.saveSplitSession(next, 'customer');
++      setSplitSession(next);
++    } catch (err) {
++      console.error('Session update failed:', err);
++    } finally {
++      setIsSaving(false);
++    }
++  }, [sessionId, checkId]);
+ 
+-  const createSplitSession = useCallback((cId: string, method: SplitMethod): SplitSession => {
++  const createSplitSession = useCallback(async (cId: string, method: SplitMethod): Promise<SplitSession> => {
++    setIsSaving(true);
+     const session: SplitSession = {
+-      id: generateId(),
++      id: generateSimpleId(),
+       checkId: cId,
+       method,
+       participants: [{
+@@ -99,116 +116,83 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
+       }],
+       createdAt: Date.now(),
+     };
+-    persistSession(session);
+-    return session;
+-  }, [participantId, persistSession]);
+-
+-  const joinSplitSession = useCallback((cId: string): SplitSession | null => {
+-    const saved = localStorage.getItem(`check_split_${cId}`);
+-    if (!saved) return null;
+-    const session: SplitSession = JSON.parse(saved);
+-    // Don't duplicate if already joined
+-    if (!session.participants.find(p => p.id === participantId)) {
+-      session.participants.push({
+-        id: participantId,
+-        name: `Guest ${session.participants.length + 1}`,
+-        selectedItemIndices: [],
+-        share: 0,
+-        paid: false,
+-      });
+-      persistSession(session);
+-    }
+-    setSplitSession(session);
+-    return session;
+-  }, [participantId, persistSession]);
+-
+-  const updateParticipant = useCallback((_sessionId: string, updated: Participant) => {
+-    const keyId = sessionId || checkId;
+-    const saved = localStorage.getItem(`check_split_${keyId}`);
+-    if (!saved) return;
+-    const session: SplitSession = JSON.parse(saved);
+-    session.participants = session.participants.map(p => p.id === updated.id ? updated : p);
+-    persistSession(session);
+-  }, [sessionId, checkId, persistSession]);
+-
+-  const changeSplitMethod = useCallback((method: SplitMethod) => {
+-    if (!splitSession) return;
+-    const updated = { ...splitSession, method };
+-    persistSession(updated);
+-  }, [splitSession, persistSession]);
+-
+-  /**
+-   * OPTIMISTIC UI: applySessionReward
+-   */
+-  const applySessionReward = useCallback(async (amount: number, name: string) => {
+-    if (!splitSession) return;
+-    
+-    // 1. Capture previous state for rollback
+-    const previousSession = { ...splitSession };
+-    
+-    // 2. Optimistically update state
+-    const optimisticSession = {
+-      ...splitSession,
+-      discount: amount,
+-      appliedBy: name
+-    };
+-    setSplitSession(optimisticSession);
+-    
+-    // 3. Background Persistence (Simulated)
+     try {
+-      // Small artificial delay to show the "snap"
+-      const keyId = sessionId || splitSession.checkId;
+-      localStorage.setItem(`check_split_${keyId}`, JSON.stringify(optimisticSession));
+-    } catch {
+-      console.error('Persistence failed, rolling back');
+-      // Rollback!
+-      setSplitSession(previousSession);
+-      setSyncError('Failed to apply reward. Please try again.');
++      await customerService.saveSplitSession(session, 'customer');
++      setSplitSession(session);
++      return session;
++    } finally {
++      setIsSaving(false);
+     }
+-  }, [splitSession]);
++  }, [participantId]);
+ 
+-  /**
+-   * OPTIMISTIC UI: removeSessionReward
+-   */
+-  const removeSessionReward = useCallback(async () => {
+-    if (!splitSession) return;
+-    
+-    const previousSession = { ...splitSession };
+-    
+-    const optimisticSession = { ...splitSession };
+-    delete optimisticSession.discount;
+-    delete optimisticSession.appliedBy;
+-    
+-    setSplitSession(optimisticSession);
+-    
++  const joinSplitSession = useCallback(async (cId: string): Promise<SplitSession | null> => {
++    setIsLoading(true);
+     try {
+-      const keyId = sessionId || splitSession.checkId;
+-      localStorage.setItem(`check_split_${keyId}`, JSON.stringify(optimisticSession));
+-    } catch {
+-      setSplitSession(previousSession);
+-      setSyncError('Failed to remove reward. Please try again.');
++      const session = await customerService.fetchSplitSession(cId);
++      if (!session) return null;
++      
++      if (!session.participants.find((p: Participant) => p.id === participantId)) {
++        session.participants.push({
++          id: participantId,
++          name: `Guest ${session.participants.length + 1}`,
++          selectedItemIndices: [],
++          share: 0,
++          paid: false,
++        });
++        await customerService.saveSplitSession(session, 'customer');
++      }
++      setSplitSession(session);
++      return session;
++    } finally {
++      setIsLoading(false);
+     }
+-  }, [splitSession]);
++  }, [participantId]);
++
++  const updateParticipant = useCallback(async (_sessionId: string, updated: Participant) => {
++    await performSessionUpdate(current => ({
++      ...current,
++      participants: current.participants.map((p: Participant) => p.id === updated.id ? updated : p)
++    }));
++  }, [performSessionUpdate]);
+ 
+-  const markPaid = useCallback(() => {
+-    if (!splitSession) return;
+-    const updated = {
+-      ...splitSession,
+-      participants: splitSession.participants.map(p =>
++  const changeSplitMethod = useCallback(async (method: SplitMethod) => {
++    await performSessionUpdate(current => ({ ...current, method }));
++  }, [performSessionUpdate]);
++
++  const applySessionReward = useCallback(async (amount: number, name: string) => {
++    await performSessionUpdate(current => {
++      const next = { ...current, discount: amount, appliedBy: name };
++      return next;
++    });
++  }, [performSessionUpdate]);
++
++  const removeSessionReward = useCallback(async () => {
++    await performSessionUpdate(current => {
++      const next = { ...current };
++      delete next.discount;
++      delete next.appliedBy;
++      return next;
++    });
++  }, [performSessionUpdate]);
++
++  const markPaid = useCallback(async () => {
++    await performSessionUpdate(current => ({
++      ...current,
++      participants: current.participants.map(p =>
+         p.id === participantId ? { ...p, paid: true } : p
+-      ),
+-    };
+-    persistSession(updated);
+-  }, [splitSession, participantId, persistSession]);
++      )
++    }));
++  }, [participantId, performSessionUpdate]);
+ 
+-  const clearSession = useCallback((cId: string) => {
+-    localStorage.removeItem(`check_split_${cId}`);
++  const clearSession = useCallback(async (cId: string) => {
++    await customerService.clearSplitSession(cId);
+     setSplitSession(null);
+   }, []);
+ 
+   return (
+     <CustomerContext.Provider value={{
+       checkId, sessionId, splitSession, participantId, isSignedIn, appliedRewardId,
++      isSaving, isLoading,
+       setCheckId, setSessionId, setSignedIn, applyReward: setAppliedRewardId,
+       createSplitSession, joinSplitSession, updateParticipant,
+       changeSplitMethod, applySessionReward, removeSessionReward, markPaid, clearSession,
+@@ -219,7 +203,6 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
+   );
+ };
+ 
+-// eslint-disable-next-line react-refresh/only-export-components
+ export const useCustomer = () => {
+   const ctx = useContext(CustomerContext);
+   if (!ctx) throw new Error('useCustomer must be used within CustomerProvider');
+diff --git a/src/context/CustomerProfileContext.tsx b/src/context/CustomerProfileContext.tsx
+index d06320a..1f0cb62 100644
+--- a/src/context/CustomerProfileContext.tsx
++++ b/src/context/CustomerProfileContext.tsx
+@@ -1,26 +1,37 @@
+ import React, { createContext, useContext, useState, useEffect } from 'react';
+ import type { LinkedAccount, VendorReward, Activity, UserProfile } from '../types/profile';
++import { profileService, realtimeService } from '../api/dataService';
++import type { RealtimeEvent } from '../api/realtimeService';
++import { STORAGE_KEYS } from '../utils/constants';
++import { generateId } from '../utils/idUtils';
+ 
+ interface CustomerProfileContextType {
+   user: UserProfile | null;
+   isAuthenticated: boolean;
+   isLoadingAuth: boolean;
++  isSaving: boolean;
++  isLoading: boolean;
+   wallet: LinkedAccount[];
+   rewards: VendorReward[];
+   activities: Activity[];
+   checkEmail: (email: string) => Promise<{ exists: boolean }>;
+   login: (email: string, otp: string) => Promise<void>;
+   signup: (userData: UserProfile & { mobile: string }, otp: string) => Promise<void>;
+-  logout: () => void;
+-  linkAccount: (account: Omit<LinkedAccount, 'id' | 'balance' | 'isPrimary'>) => void;
+-  removeAccount: (id: string) => void;
+-  setPrimaryAccount: (id: string) => void;
+-  addActivity: (activity: Omit<Activity, 'id'>) => void;
++  logout: () => Promise<void>;
++  linkAccount: (account: Omit<LinkedAccount, 'id' | 'balance' | 'isPrimary'>) => Promise<void>;
++  removeAccount: (id: string) => Promise<void>;
++  setPrimaryAccount: (id: string) => Promise<void>;
++  addActivity: (activity: Omit<Activity, 'id'>) => Promise<void>;
+ }
+ 
+ const CustomerProfileContext = createContext<CustomerProfileContextType | undefined>(undefined);
+ 
+-const INITIAL_STATE = {
++const INITIAL_STATE: {
++  user: UserProfile;
++  wallet: LinkedAccount[];
++  rewards: VendorReward[];
++  activities: Activity[];
++} = {
+   user: {
+     name: 'Alex Sterling',
+     email: 'alex.sterling@example.com',
+@@ -75,12 +86,8 @@ const INITIAL_STATE = {
+   ]
+ };
+ 
+-/**
+- * Migration helper to ensure legacy activity data is upgraded to the new itemized format.
+- */
+ const migrateActivities = (loaded: Activity[]): Activity[] => {
+   return loaded.map(act => {
+-    // Demo migration: Ensure act_1 always has its items for the showcase
+     if (act.id === 'act_1' && (!act.items || act.items.length === 0)) {
+       const demoAct = INITIAL_STATE.activities.find(a => a.id === 'act_1');
+       return { 
+@@ -95,45 +102,64 @@ const migrateActivities = (loaded: Activity[]): Activity[] => {
+ 
+ export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+   const [user, setUser] = useState<UserProfile | null>(() => {
+-    const saved = localStorage.getItem('customer_profile');
++    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_PROFILE);
+     return saved ? JSON.parse(saved) : null;
+   });
+   
+   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+-    return localStorage.getItem('customer_authenticated') === 'true';
++    return localStorage.getItem(STORAGE_KEYS.CUSTOMER_AUTH) === 'true';
+   });
+   
+   const [isLoadingAuth, setIsLoadingAuth] = useState(false);
++  const [isSaving, setIsSaving] = useState(false);
++  const [isLoading] = useState(false); // No longer blocks UI
+   
+   const [wallet, setWallet] = useState<LinkedAccount[]>(() => {
+-    const saved = localStorage.getItem('customer_wallet');
++    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_WALLET);
+     return saved ? JSON.parse(saved) : INITIAL_STATE.wallet;
+   });
+   
+   const [rewards] = useState<VendorReward[]>(INITIAL_STATE.rewards);
+-  
+   const [activities, setActivities] = useState<Activity[]>(() => {
+-    const saved = localStorage.getItem('customer_activities');
++    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_ACTIVITIES);
+     const loaded: Activity[] = saved ? JSON.parse(saved) : INITIAL_STATE.activities;
+     return migrateActivities(loaded);
+   });
+ 
++  // Initial Sync (Revalidation)
+   useEffect(() => {
+-    localStorage.setItem('customer_wallet', JSON.stringify(wallet));
+-  }, [wallet]);
++    const revalidate = async () => {
++      const profile = await profileService.fetchProfile();
++      if (profile.user) setUser(profile.user);
++      setIsAuthenticated(profile.isAuthenticated);
+ 
+-  useEffect(() => {
+-    localStorage.setItem('customer_activities', JSON.stringify(activities));
+-  }, [activities]);
++      const savedWallet = await profileService.fetchWallet();
++      if (savedWallet) setWallet(savedWallet);
+ 
++      const savedActivities = await profileService.fetchActivities();
++      if (savedActivities) setActivities(migrateActivities(savedActivities));
++    };
++    revalidate();
++  }, []);
++
++  // Real-time synchronization
+   useEffect(() => {
+-    if (user) {
+-      localStorage.setItem('customer_profile', JSON.stringify(user));
+-    } else {
+-      localStorage.removeItem('customer_profile');
+-    }
+-    localStorage.setItem('customer_authenticated', isAuthenticated.toString());
+-  }, [user, isAuthenticated]);
++    const unsub = realtimeService.subscribe('PROFILE_UPDATED', async (event: RealtimeEvent) => {
++      // Refresh if the update came from another tab
++      if (event.payload?.source !== 'profile') {
++        const profile = await profileService.fetchProfile();
++        setUser(profile.user);
++        setIsAuthenticated(profile.isAuthenticated);
++
++        const savedWallet = await profileService.fetchWallet();
++        if (savedWallet) setWallet(savedWallet);
++
++        const savedActivities = await profileService.fetchActivities();
++        if (savedActivities) setActivities(migrateActivities(savedActivities));
++      }
++    });
++    return unsub;
++  }, []);
+ 
+   const checkEmail = async (email: string) => {
+     setIsLoadingAuth(true);
+@@ -148,55 +174,95 @@ export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> =
+     setUser(INITIAL_STATE.user);
+     setIsAuthenticated(true);
+     setIsLoadingAuth(false);
++    await profileService.saveProfile(INITIAL_STATE.user, true);
+   };
+ 
+   const signup = async (userData: UserProfile & { mobile: string }, _otp: string) => {
+     setIsLoadingAuth(true);
+     await new Promise(resolve => setTimeout(resolve, 1500));
+-    setUser({ name: userData.name, email: userData.email, avatar: userData.avatar });
++    const newUser = { name: userData.name, email: userData.email, avatar: userData.avatar };
++    setUser(newUser);
+     setIsAuthenticated(true);
+     setIsLoadingAuth(false);
++    await profileService.saveProfile(newUser, true);
+   };
+ 
+-  const logout = () => {
++  const logout = async () => {
+     setUser(null);
+     setIsAuthenticated(false);
+-    localStorage.removeItem('customer_authenticated');
+-    localStorage.removeItem('customer_profile');
++    await profileService.saveProfile(null, false);
+   };
+ 
+-  const linkAccount = (accountData: Omit<LinkedAccount, 'id' | 'balance' | 'isPrimary'>) => {
+-    const newAccount: LinkedAccount = {
+-      ...accountData,
+-      id: `acc_${Date.now()}`,
+-      balance: 0,
+-      isPrimary: wallet.length === 0,
+-    };
+-    setWallet(prev => [...prev, newAccount]);
++  const performWalletUpdate = async (updater: (cur: LinkedAccount[]) => LinkedAccount[]) => {
++    setIsSaving(true);
++    try {
++      const current = await profileService.fetchWallet() || wallet;
++      const next = updater(current);
++      await profileService.saveWallet(next);
++      setWallet(next);
++    } catch (err) {
++      console.error('Wallet update failed:', err);
++    } finally {
++      setIsSaving(false);
++    }
++  };
++
++  const performActivityUpdate = async (updater: (cur: Activity[]) => Activity[]) => {
++    setIsSaving(true);
++    try {
++      const current = await profileService.fetchActivities() || activities;
++      const next = updater(current);
++      await profileService.saveActivities(next);
++      setActivities(next);
++    } catch (err) {
++      console.error('Activity update failed:', err);
++    } finally {
++      setIsSaving(false);
++    }
+   };
+ 
+-  const removeAccount = (id: string) => {
+-    setWallet(prev => prev.filter(acc => acc.id !== id));
++  const linkAccount = async (accountData: Omit<LinkedAccount, 'id' | 'balance' | 'isPrimary'>) => {
++    await performWalletUpdate(cur => {
++      const newAccount: LinkedAccount = {
++        ...accountData,
++        id: generateId('acc'),
++        balance: 0,
++        isPrimary: cur.length === 0,
++      };
++      return [...cur, newAccount];
++    });
++  };
++
++  const removeAccount = async (id: string) => {
++    await performWalletUpdate(cur => {
++      const nextWallet = cur.filter((acc: LinkedAccount) => acc.id !== id);
++      if (cur.find(acc => acc.id === id)?.isPrimary && nextWallet.length > 0) {
++        nextWallet[0].isPrimary = true;
++      }
++      return nextWallet;
++    });
+   };
+ 
+-  const setPrimaryAccount = (id: string) => {
+-    setWallet(prev => prev.map(acc => ({
++  const setPrimaryAccount = async (id: string) => {
++    await performWalletUpdate(cur => cur.map((acc: LinkedAccount) => ({
+       ...acc,
+       isPrimary: acc.id === id
+     })));
+   };
+   
+-  const addActivity = (activityData: Omit<Activity, 'id'>) => {
+-    const newActivity: Activity = {
+-      ...activityData,
+-      id: `act_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+-    };
+-    setActivities(prev => [newActivity, ...prev]);
++  const addActivity = async (activityData: Omit<Activity, 'id'>) => {
++    await performActivityUpdate(cur => {
++      const newActivity: Activity = {
++        ...activityData,
++        id: generateId('act'),
++      };
++      return [newActivity, ...cur];
++    });
+   };
+ 
+   return (
+     <CustomerProfileContext.Provider value={{ 
+-      user, isAuthenticated, isLoadingAuth,
++      user, isAuthenticated, isLoadingAuth, isSaving, isLoading,
+       wallet, rewards, activities, 
+       checkEmail, login, signup, logout,
+       linkAccount, removeAccount, setPrimaryAccount,
+@@ -207,7 +273,6 @@ export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> =
+   );
+ };
+ 
+-// eslint-disable-next-line react-refresh/only-export-components
+ export const useCustomerProfile = () => {
+   const context = useContext(CustomerProfileContext);
+   if (!context) throw new Error('useCustomerProfile must be used within CustomerProfileProvider');
+diff --git a/src/context/MerchantContext.tsx b/src/context/MerchantContext.tsx
+index 5ab0f74..a639615 100644
+--- a/src/context/MerchantContext.tsx
++++ b/src/context/MerchantContext.tsx
+@@ -1,4 +1,4 @@
+-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
++import React, { createContext, useEffect, useState } from 'react';
+ import type { 
+   BankAccount, 
+   OrderItem, 
+@@ -11,43 +11,49 @@ import type {
+   MerchantPreferences,
+   MerchantContactInfo
+ } from '../types/merchant';
+-import { MERCHANT_LIMITS, STORAGE_KEYS } from '../utils/constants';
+-import { MerchantAuthProvider, useMerchantAuth } from './MerchantAuthContext';
++import { MERCHANT_LIMITS } from '../utils/constants';
++import { MerchantAuthProvider } from './MerchantAuthContext';
+ import { MerchantMenuProvider, useMerchantMenu } from './MerchantMenuContext';
++import { merchantService, realtimeService } from '../api/dataService';
++import type { RealtimeEvent } from '../api/realtimeService';
++import { STORAGE_KEYS } from '../utils/constants';
++import { generateId } from '../utils/idUtils';
+ 
+ // Re-export sub-context hooks for convenience
+ export { useMerchantAuth } from './MerchantAuthContext';
+ export { useMerchantMenu } from './MerchantMenuContext';
+ 
+-interface MerchantOpsContextType {
++export interface MerchantOpsContextType {
+   state: MerchantState;
+-  addBankAccount: (bank: Omit<BankAccount, 'id' | 'isPrimary'>) => void;
+-  removeBankAccount: (id: string) => void;
+-  setPrimaryBankAccount: (id: string) => void;
+-  updateBusinessInfo: (info: { name: string; profile: string; category: string }) => void;
+-  updateCheckStatus: (id: string, status: 'open' | 'active' | 'paid') => void;
+-  addOrderToCheck: (checkId: string, item: OrderItem) => void;
+-  addOrdersToCheck: (checkId: string, items: OrderItem[]) => void;
+-  updateOrderQuantity: (checkId: string, menuItemId: string, quantityDelta: number) => void;
+-  createInvoice: (invoice: Invoice) => void;
+-  updateInvoice: (invoice: Invoice) => void;
+-  updateInvoiceStatus: (id: string, status: Invoice['status']) => void;
+-  requestVerification: (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => void;
+-  resolveVerification: (id: string, confirmed: boolean, confirmedAmount?: number) => void;
+-  resetCheck: (id: string) => void;
+-  updatePreferences: (prefs: Partial<MerchantPreferences>) => void;
+-  updateContactInfo: (contact: Partial<MerchantContactInfo>) => void;
+-  toggleCheckEnabled: (checkId: string) => void;
+-  addCheck: () => void;
+-  linkBankAccountToCheck: (checkId: string, bankAccountId: string | undefined) => void;
+-  setCheckPaymentMode: (checkId: string, mode: 'itemized' | 'quickpay') => void;
+-  startCheckSession: (checkId: string) => string;
++  isSaving: boolean;
++  isLoading: boolean;
++  addBankAccount: (bank: Omit<BankAccount, 'id' | 'isPrimary'>) => Promise<void>;
++  removeBankAccount: (id: string) => Promise<void>;
++  setPrimaryBankAccount: (id: string) => Promise<void>;
++  updateBusinessInfo: (info: { name: string; profile: string; category: string }) => Promise<void>;
++  updateCheckStatus: (id: string, status: 'open' | 'active' | 'paid') => Promise<void>;
++  addOrderToCheck: (checkId: string, item: OrderItem) => Promise<void>;
++  addOrdersToCheck: (checkId: string, items: OrderItem[]) => Promise<void>;
++  updateOrderQuantity: (checkId: string, menuItemId: string, quantityDelta: number) => Promise<void>;
++  createInvoice: (invoice: Invoice) => Promise<void>;
++  updateInvoice: (invoice: Invoice) => Promise<void>;
++  updateInvoiceStatus: (id: string, status: Invoice['status']) => Promise<void>;
++  requestVerification: (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => Promise<void>;
++  resolveVerification: (id: string, confirmed: boolean, confirmedAmount?: number) => Promise<void>;
++  resetCheck: (id: string) => Promise<void>;
++  updatePreferences: (prefs: Partial<MerchantPreferences>) => Promise<void>;
++  updateContactInfo: (contact: Partial<MerchantContactInfo>) => Promise<void>;
++  toggleCheckEnabled: (checkId: string) => Promise<void>;
++  addCheck: () => Promise<void>;
++  linkBankAccountToCheck: (checkId: string, bankAccountId: string | undefined) => Promise<void>;
++  setCheckPaymentMode: (checkId: string, mode: 'itemized' | 'quickpay') => Promise<void>;
++  startCheckSession: (checkId: string) => Promise<string>;
+ }
+ 
+-const MerchantOpsContext = createContext<MerchantOpsContextType | undefined>(undefined);
++export const MerchantOpsContext = createContext<MerchantOpsContextType | undefined>(undefined);
++
++// genId is replaced by generateId utility
+ 
+-// Hardened ID generator
+-const genId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+ 
+ const { MAX_ARCHIVED_SESSIONS, MAX_ORDER_HISTORY, MAX_ACTIVITIES } = MERCHANT_LIMITS;
+ 
+@@ -81,36 +87,50 @@ const INITIAL_OPS_STATE: MerchantState = {
+ 
+ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+   const { menu, rewards } = useMerchantMenu();
+-
+   const [state, setState] = useState<MerchantState>(() => {
+-    const saved = localStorage.getItem('merchant_state');
+-    if (saved) {
+-      const parsed = JSON.parse(saved);
+-      return { 
+-        ...INITIAL_OPS_STATE, 
+-        ...parsed,
+-        menu: [], // Ensure these are kept empty in Ops state to avoid sync issues
+-        rewards: []
+-      };
+-    }
+-    return INITIAL_OPS_STATE;
++    const saved = localStorage.getItem(STORAGE_KEYS.MERCHANT_STATE);
++    const loaded = saved ? JSON.parse(saved) : INITIAL_OPS_STATE;
++    return { ...loaded, menu: [], rewards: [] };
+   });
++  const [isSaving, setIsSaving] = useState(false);
++  const [isLoading] = useState(false);
+ 
+-  // Sync to localStorage - Consistently handle merging to avoid race conditions
++  // Background Revalidation
+   useEffect(() => {
+-    const saved = localStorage.getItem(STORAGE_KEYS.MERCHANT_STATE);
+-    const currentPersisted = saved ? JSON.parse(saved) : {};
+-    
+-    // Only persist what Ops/Root owns, but keep menu/rewards updated in the global object
+-    const updatedPersisted = {
+-      ...currentPersisted,
+-      ...state,
+-      menu, 
+-      rewards
++    const revalidate = async () => {
++      const saved = await merchantService.fetchState();
++      if (saved) {
++        setState(prev => ({
++          ...prev,
++          ...saved,
++          menu: [],
++          rewards: []
++        }));
++      }
+     };
+-    
+-    localStorage.setItem(STORAGE_KEYS.MERCHANT_STATE, JSON.stringify(updatedPersisted));
+-  }, [state, menu, rewards]);
++    revalidate();
++  }, []);
++
++  // Real-time synchronization
++  useEffect(() => {
++    const unsub = realtimeService.subscribe('STATE_CHANGED', async (event: RealtimeEvent) => {
++      // Only refresh if the update came from another tab (storage_event) 
++      // or another provider in the same tab (menu)
++      if (event.payload?.source !== 'ops') {
++        const saved = await merchantService.fetchState();
++        if (saved) {
++          setState(prev => ({
++            ...prev,
++            ...saved,
++            menu: [], // Keep managed by MenuContext
++            rewards: []
++          }));
++        }
++      }
++    });
++    return unsub;
++  }, []);
++
+ 
+   // Deep Prune on Mount
+   useEffect(() => {
+@@ -120,20 +140,21 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
+ 
+   // --- Helper Methods (Internal) ---
+   const _archiveCheckState = (checkId: string, check: Check, source: string) => {
+-    const pastOrderId = genId('ord');
+-    const sessionId = check.sessionId || genId('SESS');
++    const pastOrderId = generateId('ord');
++    const sessionId = check.sessionId || generateId('SESS');
+     const timestamp = new Date().toISOString();
+ 
+     const pastOrder: PastOrder = {
+       id: pastOrderId,
+       checkId: checkId,
++      sessionId,
+       orders: [...check.orders],
+       total: check.total,
+       timestamp
+     };
+ 
+     const activity: MerchantActivity = {
+-      id: genId('act'),
++      id: generateId('act'),
+       type: 'check_payment',
+       amount: check.total,
+       referenceId: sessionId,
+@@ -190,64 +211,101 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
+     return [newAct, ...activities];
+   };
+ 
++  /**
++   * CENTRALIZED PERSISTENCE HELPER
++   * Standardizes the Fetch-Modify-Save pattern to prevent race conditions.
++   */
++  const performOpsUpdate = async (updater: (current: MerchantState) => MerchantState) => {
++    setIsSaving(true);
++    try {
++      const next = await merchantService.patchState(current => {
++        const nextOps = updater(current);
++        // Preserve menu/rewards from the latest storage state, do NOT overwrite with context values here
++        // to avoid race conditions. The dataService.patchState already handles merging.
++        return {
++          ...nextOps,
++          menu: current.menu || [],
++          rewards: current.rewards || []
++        };
++      }, 'ops');
++      
++      setState(next);
++    } catch (err) {
++      console.error('Failed to persist merchant state:', err);
++    } finally {
++      setIsSaving(false);
++    }
++  };
++
+   // --- Public Methods ---
+-  const addBankAccount = (bank: Omit<BankAccount, 'id' | 'isPrimary'>) => {
+-    setState(prev => ({ 
+-      ...prev, 
+-      bankAccounts: [...prev.bankAccounts, { ...bank, id: genId('acc'), isPrimary: prev.bankAccounts.length === 0 }] 
++  const addBankAccount = async (bank: Omit<BankAccount, 'id' | 'isPrimary'>) => {
++    await performOpsUpdate(current => ({ 
++      ...current, 
++      bankAccounts: [...current.bankAccounts, { ...bank, id: generateId('acc'), isPrimary: current.bankAccounts.length === 0 }] 
+     }));
+   };
+ 
+-  const removeBankAccount = (id: string) => {
+-    setState(prev => {
+-      const newAccounts = prev.bankAccounts.filter(acc => acc.id !== id);
+-      if (prev.bankAccounts.find(acc => acc.id === id)?.isPrimary && newAccounts.length > 0) {
++  const removeBankAccount = async (id: string) => {
++    await performOpsUpdate(current => {
++      const newAccounts = current.bankAccounts.filter(acc => acc.id !== id);
++      if (current.bankAccounts.find(acc => acc.id === id)?.isPrimary && newAccounts.length > 0) {
+         newAccounts[0].isPrimary = true;
+       }
+-      return { ...prev, bankAccounts: newAccounts };
++      return { ...current, bankAccounts: newAccounts };
+     });
+   };
+ 
+-  const setPrimaryBankAccount = (id: string) => {
+-    setState(prev => ({
+-      ...prev,
+-      bankAccounts: prev.bankAccounts.map(acc => ({ ...acc, isPrimary: acc.id === id }))
++  const setPrimaryBankAccount = async (id: string) => {
++    await performOpsUpdate(current => ({
++      ...current,
++      bankAccounts: current.bankAccounts.map(acc => ({ ...acc, isPrimary: acc.id === id }))
+     }));
+   };
+ 
+-  const updateBusinessInfo = (info: { name: string; profile: string; category: string }) => {
+-    setState(prev => ({ ...prev, name: info.name, businessProfile: info.profile, businessCategory: info.category }));
++  const updateBusinessInfo = async (info: { name: string; profile: string; category: string }) => {
++    await performOpsUpdate(current => ({ 
++      ...current, 
++      name: info.name, 
++      businessProfile: info.profile, 
++      businessCategory: info.category 
++    }));
+   };
+ 
+-  const updateCheckStatus = (id: string, status: 'open' | 'active' | 'paid') => {
+-    setState(prev => {
++  const updateCheckStatus = async (id: string, status: 'open' | 'active' | 'paid') => {
++    await performOpsUpdate(current => {
+       if (status === 'paid') {
+-        const check = prev.checks.find(c => c.id === id);
++        const check = current.checks.find(c => c.id === id || c.sessionId === id);
+         if (check && check.total > 0) {
+-          const { pastOrder, activity, sessionId } = _archiveCheckState(id, check, 'Paid and settled');
++          const { pastOrder, activity, sessionId } = _archiveCheckState(check.id, check, 'Paid and settled');
+           return _pruneState({
+-            ...prev,
+-            checks: prev.checks.map(c => c.id === id ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c),
+-            activities: _addActivity(prev.activities, activity),
+-            orderHistory: [pastOrder, ...prev.orderHistory],
+-            archivedSessions: { ...prev.archivedSessions, [sessionId]: pastOrder }
++            ...current,
++            checks: current.checks.map(c => (c.id === check.id) ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c),
++            activities: _addActivity(current.activities, activity),
++            orderHistory: [pastOrder, ...current.orderHistory],
++            archivedSessions: { ...current.archivedSessions, [sessionId]: pastOrder }
+           });
+         }
+       }
+-      return { ...prev, checks: prev.checks.map(c => c.id === id ? { ...c, status } : c) };
++      return { ...current, checks: current.checks.map(c => (c.id === id || c.sessionId === id) ? { ...c, status } : c) };
+     });
+   };
+ 
+-  const addOrdersToCheck = (checkId: string, items: OrderItem[]) => {
+-    setState(prev => ({
+-      ...prev,
+-      checks: prev.checks.map(c => {
+-        if (c.id !== checkId) return c;
++  const addOrdersToCheck = async (checkId: string, items: OrderItem[]) => {
++    await performOpsUpdate(current => ({
++      ...current,
++      checks: current.checks.map(c => {
++        if (c.id !== checkId && c.sessionId !== checkId) return c;
+         const newOrders = [...c.orders];
+         let totalDelta = 0;
++        
++        // Use current.menu from the latest storage state instead of the (possibly stale) context menu
++        const activeMenu = current.menu || [];
++        
+         items.forEach(item => {
+-          const menuPrice = menu.find(m => m.id === item.menuItemId)?.price || 0;
++          const menuItem = activeMenu.find(m => m.id === item.menuItemId);
++          const menuPrice = menuItem?.price || 0;
+           const idx = newOrders.findIndex(o => o.menuItemId === item.menuItemId);
++          
+           if (idx >= 0) {
+             newOrders[idx] = { ...newOrders[idx], quantity: newOrders[idx].quantity + item.quantity };
+             totalDelta += newOrders[idx].priceAtOrder * item.quantity;
+@@ -257,109 +315,121 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
+             totalDelta += price * item.quantity;
+           }
+         });
+-        return { ...c, status: 'active', orders: newOrders, total: c.total + totalDelta, sessionId: c.sessionId || genId('SESS') };
++        return { ...c, status: 'active', orders: newOrders, total: c.total + totalDelta, sessionId: c.sessionId || generateId('SESS') };
+       })
+     }));
+   };
+ 
+-  const addOrderToCheck = (checkId: string, item: OrderItem) => addOrdersToCheck(checkId, [item]);
+-
+-  const updateOrderQuantity = (checkId: string, menuItemId: string, quantityDelta: number) => {
+-    setState(prev => {
+-      const menuPrice = menu.find(m => m.id === menuItemId)?.price || 0;
+-      return {
+-        ...prev,
+-        checks: prev.checks.map(c => {
+-          if (c.id !== checkId) return c;
+-          const idx = c.orders.findIndex(o => o.menuItemId === menuItemId);
+-          if (idx === -1 && quantityDelta <= 0) return c;
+-          const newOrders = [...c.orders];
+-          let delta = 0;
+-          if (idx >= 0) {
+-            const item = newOrders[idx];
+-            const newQty = Math.max(0, item.quantity + quantityDelta);
+-            if (newQty === 0) {
+-              newOrders.splice(idx, 1);
+-              delta = -(item.priceAtOrder * item.quantity);
+-            } else {
+-              newOrders[idx] = { ...item, quantity: newQty };
+-              delta = item.priceAtOrder * quantityDelta;
+-            }
++  const addOrderToCheck = async (checkId: string, item: OrderItem) => await addOrdersToCheck(checkId, [item]);
++
++  const updateOrderQuantity = async (checkId: string, menuItemId: string, quantityDelta: number) => {
++    await performOpsUpdate(current => ({
++      ...current,
++      checks: current.checks.map(c => {
++        if (c.id !== checkId && c.sessionId !== checkId) return c;
++        const idx = c.orders.findIndex(o => o.menuItemId === menuItemId);
++        if (idx === -1 && quantityDelta <= 0) return c;
++        const newOrders = [...c.orders];
++        let delta = 0;
++        if (idx >= 0) {
++          const item = newOrders[idx];
++          const newQty = Math.max(0, item.quantity + quantityDelta);
++          if (newQty === 0) {
++            newOrders.splice(idx, 1);
++            delta = -(item.priceAtOrder * item.quantity);
+           } else {
+-            newOrders.push({ menuItemId, quantity: quantityDelta, priceAtOrder: menuPrice });
+-            delta = menuPrice * quantityDelta;
++            newOrders[idx] = { ...item, quantity: newQty };
++            delta = item.priceAtOrder * quantityDelta;
+           }
+-          return { ...c, status: newOrders.length > 0 ? 'active' : 'open', orders: newOrders, total: Math.max(0, c.total + delta) };
+-        })
+-      };
+-    });
++        } else {
++          const activeMenu = current.menu || [];
++          const menuPrice = activeMenu.find(m => m.id === menuItemId)?.price || 0;
++          newOrders.push({ menuItemId, quantity: quantityDelta, priceAtOrder: menuPrice });
++          delta = menuPrice * quantityDelta;
++        }
++        return { ...c, status: newOrders.length > 0 ? 'active' : 'open', orders: newOrders, total: Math.max(0, c.total + delta) };
++      })
++    }));
+   };
+ 
+-  const createInvoice = (invoice: Invoice) => setState(prev => ({ ...prev, invoices: [invoice, ...prev.invoices] }));
+-  const updateInvoice = (invoice: Invoice) => setState(prev => ({ ...prev, invoices: prev.invoices.map(inv => inv.id === invoice.id ? invoice : inv) }));
++  const createInvoice = async (invoice: Invoice) => {
++    await performOpsUpdate(current => ({ ...current, invoices: [invoice, ...current.invoices] }));
++  };
++  const updateInvoice = async (invoice: Invoice) => {
++    await performOpsUpdate(current => ({ ...current, invoices: current.invoices.map(inv => inv.id === invoice.id ? invoice : inv) }));
++  };
+ 
+-  const updateInvoiceStatus = (id: string, status: Invoice['status']) => {
+-    setState(prev => {
+-      let activities = prev.activities;
++  const updateInvoiceStatus = async (id: string, status: Invoice['status']) => {
++    await performOpsUpdate(current => {
++      let activities = current.activities;
+       if (status === 'paid') {
+-        const inv = prev.invoices.find(c => c.id === id);
++        const inv = current.invoices.find(c => c.id === id);
+         if (inv) {
+-          activities = _addActivity(prev.activities, {
+-            id: genId('act'), type: 'invoice_payment', amount: inv.total, referenceId: id,
++          activities = _addActivity(current.activities, {
++            id: generateId('act'), type: 'invoice_payment', amount: inv.total, referenceId: id,
+             title: `Invoice ${id}`, subtitle: `Paid by ${inv.customerName}`, timestamp: new Date().toISOString()
+           });
+         }
+       }
+-      return _pruneState({ ...prev, invoices: prev.invoices.map(inv => inv.id === id ? { ...inv, status } : inv), activities });
++      return _pruneState({
++        ...current,
++        invoices: current.invoices.map(inv => inv.id === id ? { ...inv, status } : inv),
++        activities
++      });
+     });
+   };
+ 
+-  const requestVerification = (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => {
+-    setState(prev => {
+-      const verifications = prev.pendingVerifications || [];
+-      if (verifications.some(v => v.targetId === verification.targetId && v.type === verification.type && v.status === 'pending')) return prev;
+-      return { ...prev, pendingVerifications: [...verifications, { ...verification, id: genId('VER'), timestamp: new Date().toISOString(), status: 'pending' }] };
++  const requestVerification = async (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => {
++    await performOpsUpdate(current => {
++      const verifications = current.pendingVerifications || [];
++      if (verifications.some(v => v.targetId === verification.targetId && v.type === verification.type && v.status === 'pending')) return current;
++      return { 
++        ...current, 
++        pendingVerifications: [...verifications, { ...verification, id: generateId('VER'), timestamp: new Date().toISOString(), status: 'pending' }] 
++      };
+     });
+   };
+ 
+-  const resolveVerification = (id: string, confirmed: boolean, confirmedAmount?: number) => {
+-    setState(prev => {
+-      const verifications = prev.pendingVerifications || [];
++  const resolveVerification = async (id: string, confirmed: boolean, confirmedAmount?: number) => {
++    await performOpsUpdate(current => {
++      const verifications = current.pendingVerifications || [];
+       const idx = verifications.findIndex(v => v.id === id);
+-      if (idx === -1) return prev;
++      if (idx === -1) return current;
++      
+       const v = verifications[idx];
+       const newVerifications = [...verifications];
+       newVerifications[idx] = { ...v, status: confirmed ? 'confirmed' : 'declined' };
+-      const nextState = { ...prev, pendingVerifications: newVerifications };
++      let nextState = { ...current, pendingVerifications: newVerifications };
+ 
+       if (confirmed) {
+         if (v.type === 'check') {
+-          const check = prev.checks.find(c => c.id === v.targetId);
+-          if (check && check.orders.length > 0) {
+-            const { pastOrder, activity, sessionId } = _archiveCheckState(v.targetId, check, 'Paid and settled (Remote)');
+-            return _pruneState({
++          // Find check by ID or Session ID
++          const check = current.checks.find(c => c.id === v.targetId || c.sessionId === v.targetId);
++          if (check) {
++            const { pastOrder, activity, sessionId } = _archiveCheckState(check.id, check, 'Paid and settled (Remote)');
++            nextState = _pruneState({
+               ...nextState,
+-              checks: nextState.checks.map(c => c.id === v.targetId ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c),
++              checks: nextState.checks.map(c => (c.id === check.id) ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c),
+               activities: _addActivity(nextState.activities, activity),
+               orderHistory: [pastOrder, ...nextState.orderHistory],
+               archivedSessions: { ...nextState.archivedSessions, [sessionId]: pastOrder }
+             });
+           }
+         } else if (v.type === 'invoice') {
+-          const inv = prev.invoices.find(i => i.id === v.targetId);
+-          return _pruneState({
++          const inv = current.invoices.find(i => i.id === v.targetId);
++          nextState = _pruneState({
+             ...nextState,
+             invoices: nextState.invoices.map(i => i.id === v.targetId ? { ...i, status: 'paid' } : i),
+             activities: _addActivity(nextState.activities, {
+-              id: genId('act'), type: 'invoice_payment', amount: confirmedAmount || v.amount, referenceId: v.targetId,
++              id: generateId('act'), type: 'invoice_payment', amount: confirmedAmount || v.amount, referenceId: v.targetId,
+               title: `Invoice ${v.targetId}`, subtitle: inv ? `Paid by ${inv.customerName}` : 'Verified remote payment', timestamp: new Date().toISOString()
+             })
+           });
+         } else if (v.type === 'quickpay') {
+-          return _pruneState({
++          nextState = _pruneState({
+             ...nextState,
+             activities: _addActivity(nextState.activities, {
+-              id: genId('act'), type: 'quickpay', amount: confirmedAmount || v.amount, referenceId: v.targetId || v.id,
++              id: generateId('act'), type: 'quickpay', amount: confirmedAmount || v.amount, referenceId: v.targetId || v.id,
+               title: 'Quickpay', subtitle: 'Received via QR Terminal', timestamp: new Date().toISOString()
+             })
+           });
+@@ -369,17 +439,32 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
+     });
+   };
+ 
+-  const resetCheck = (id: string) => setState(prev => ({ ...prev, checks: prev.checks.map(c => c.id === id ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c) }));
+-  const updatePreferences = (prefs: Partial<MerchantPreferences>) => setState(prev => ({ ...prev, preferences: { ...prev.preferences, ...prefs } }));
+-  const updateContactInfo = (contact: Partial<MerchantContactInfo>) => setState(prev => ({ ...prev, contactInfo: { ...prev.contactInfo!, ...contact } }));
+-  const toggleCheckEnabled = (checkId: string) => {
+-    setState(prev => ({
+-      ...prev,
+-      checks: prev.checks.map(c => {
++  const resetCheck = async (id: string) => {
++    await performOpsUpdate(current => ({ 
++      ...current, 
++      checks: current.checks.map(c => (c.id === id || c.sessionId === id) ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c) 
++    }));
++  };
++  const updatePreferences = async (prefs: Partial<MerchantPreferences>) => {
++    await performOpsUpdate(current => ({ 
++      ...current, 
++      preferences: { ...current.preferences, ...prefs } 
++    }));
++  };
++  const updateContactInfo = async (contact: Partial<MerchantContactInfo>) => {
++    await performOpsUpdate(current => ({ 
++      ...current, 
++      contactInfo: { ...current.contactInfo!, ...contact } 
++    }));
++  };
++  const toggleCheckEnabled = async (checkId: string) => {
++    await performOpsUpdate(current => ({
++      ...current,
++      checks: current.checks.map(c => {
+         if (c.id !== checkId) return c;
+         if (c.enabled) {
+           if (c.status !== 'open') return c;
+-          const checkOrders = prev.orderHistory.filter(o => o.checkId === checkId);
++          const checkOrders = current.orderHistory.filter(o => o.checkId === checkId);
+           return { ...c, enabled: false, archivedAt: new Date().toISOString(), lifetimeOrders: (c.lifetimeOrders || 0) + checkOrders.reduce((sum, o) => sum + o.orders.length, 0), lifetimeRevenue: (c.lifetimeRevenue || 0) + checkOrders.reduce((sum, o) => sum + o.total, 0) };
+         }
+         return { ...c, enabled: true, archivedAt: undefined };
+@@ -387,39 +472,62 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
+     }));
+   };
+ 
+-  const addCheck = () => {
+-    setState(prev => {
+-      const maxId = prev.checks.reduce((max, c) => Math.max(max, parseInt(c.id) || 0), 0);
+-      return { ...prev, checks: [...prev.checks, { id: `${maxId + 1}`, status: 'open', enabled: true, orders: [], total: 0 }] };
++  const addCheck = async () => {
++    await performOpsUpdate(current => {
++      const maxId = current.checks.reduce((max, c) => Math.max(max, parseInt(c.id) || 0), 0);
++      const newCheck: Check = { id: `${maxId + 1}`, status: 'open', enabled: true, orders: [], total: 0 };
++      return { ...current, checks: [...current.checks, newCheck] };
+     });
+   };
+ 
+-  const linkBankAccountToCheck = (checkId: string, bankAccountId: string | undefined) => setState(prev => ({ ...prev, checks: prev.checks.map(c => c.id === checkId ? { ...c, bankAccountId } : c) }));
+-  const setCheckPaymentMode = (checkId: string, mode: 'itemized' | 'quickpay') => setState(prev => ({ ...prev, checks: prev.checks.map(c => c.id === checkId ? { ...c, paymentMode: mode } : c) }));
+-
+-  const startCheckSession = (checkId: string) => {
+-    const newSessionId = genId('SESS');
+-    setState(prev => {
+-      const check = prev.checks.find(c => c.id === checkId);
+-      if (!check) return prev;
+-      let nextState = { ...prev };
+-      let activities = prev.activities;
+-      const orderHistory = [...prev.orderHistory];
++  const linkBankAccountToCheck = async (checkId: string, bankAccountId: string | undefined) => {
++    await performOpsUpdate(current => ({ 
++      ...current, 
++      checks: current.checks.map(c => (c.id === checkId || c.sessionId === checkId) ? { ...c, bankAccountId } : c) 
++    }));
++  };
++  const setCheckPaymentMode = async (checkId: string, mode: 'itemized' | 'quickpay') => {
++    await performOpsUpdate(current => ({ 
++      ...current, 
++      checks: current.checks.map(c => (c.id === checkId || c.sessionId === checkId) ? { ...c, paymentMode: mode } : c) 
++    }));
++  };
++
++  const startCheckSession = async (checkId: string) => {
++    const newSessionId = generateId('SESS');
++    
++    await performOpsUpdate(current => {
++      const check = current.checks.find(c => c.id === checkId);
++      if (!check) return current;
++
++      let nextState = { ...current };
++      let orderHistory = [...current.orderHistory];
++      let activities = current.activities;
++
++      // Archive previous session if it had data
+       if (check.sessionId && (check.orders.length > 0 || check.total > 0)) {
+         const { pastOrder, activity, sessionId } = _archiveCheckState(checkId, check, 'Table reset by new scan');
+-        orderHistory.unshift(pastOrder);
+-        activities = _addActivity(prev.activities, activity);
+-        nextState.archivedSessions = { ...prev.archivedSessions, [sessionId]: pastOrder };
++        orderHistory = [pastOrder, ...orderHistory];
++        activities = _addActivity(current.activities, activity);
++        nextState.archivedSessions = { ...current.archivedSessions, [sessionId]: pastOrder };
+       }
+-      nextState.checks = nextState.checks.map(c => c.id === checkId ? { ...c, status: 'open', orders: [], total: 0, sessionId: newSessionId } : c);
++
++      // Reset check and assign new session
++      nextState.checks = nextState.checks.map(c => 
++        c.id === checkId ? { ...c, status: 'open', orders: [], total: 0, sessionId: newSessionId } : c
++      );
++
+       return _pruneState({ ...nextState, activities, orderHistory });
+     });
++
+     return newSessionId;
+   };
+ 
+   return (
+     <MerchantOpsContext.Provider value={{
+       state: { ...state, menu, rewards }, // Unified state for backward compat
++      isSaving,
++      isLoading,
+       addBankAccount, removeBankAccount, setPrimaryBankAccount, updateBusinessInfo,
+       updateCheckStatus, addOrderToCheck, addOrdersToCheck, updateOrderQuantity,
+       createInvoice, updateInvoice, updateInvoiceStatus, requestVerification,
+@@ -444,19 +552,4 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
+   );
+ };
+ 
+-// --- Unified Hook (Backward Compatible) ---
+-export const useMerchant = () => {
+-  const ops = useContext(MerchantOpsContext);
+-  const auth = useMerchantAuth();
+-  const menu = useMerchantMenu();
+-
+-  if (!ops) throw new Error('useMerchant must be used within MerchantProvider');
+-
+-  return useMemo(() => ({
+-    ...ops,
+-    ...auth,
+-    ...menu,
+-    // Ensure 'state' contains menu/rewards for components that expect it
+-    state: { ...ops.state, menu: menu.menu, rewards: menu.rewards }
+-  }), [ops, auth, menu]);
+-};
++export { useMerchant } from '../hooks/useMerchant';
+diff --git a/src/context/MerchantMenuContext.tsx b/src/context/MerchantMenuContext.tsx
+index 52f0e5d..33792d2 100644
+--- a/src/context/MerchantMenuContext.tsx
++++ b/src/context/MerchantMenuContext.tsx
+@@ -1,18 +1,22 @@
+-import React, { createContext, useContext, useState } from 'react';
++import React, { createContext, useContext, useState, useEffect } from 'react';
+ import type { MenuItem, Reward } from '../types/merchant';
++import { merchantService, realtimeService } from '../api/dataService';
++import type { RealtimeEvent } from '../api/realtimeService';
+ import { STORAGE_KEYS } from '../utils/constants';
+ 
+ interface MerchantMenuContextType {
+   menu: MenuItem[];
+   rewards: Reward[];
+-  addMenuItem: (item: MenuItem) => void;
+-  updateMenuItem: (item: MenuItem) => void;
+-  archiveMenuItem: (id: string) => void;
+-  restoreMenuItem: (id: string) => void;
+-  deleteMenuItem: (id: string) => void;
+-  addReward: (reward: Reward) => void;
+-  updateReward: (reward: Reward) => void;
+-  deleteReward: (id: string) => void;
++  isSaving: boolean;
++  isLoading: boolean;
++  addMenuItem: (item: MenuItem) => Promise<void>;
++  updateMenuItem: (item: MenuItem) => Promise<void>;
++  archiveMenuItem: (id: string) => Promise<void>;
++  restoreMenuItem: (id: string) => Promise<void>;
++  deleteMenuItem: (id: string) => Promise<void>;
++  addReward: (reward: Reward) => Promise<void>;
++  updateReward: (reward: Reward) => Promise<void>;
++  deleteReward: (id: string) => Promise<void>;
+ }
+ 
+ const MerchantMenuContext = createContext<MerchantMenuContextType | undefined>(undefined);
+@@ -39,63 +43,127 @@ const DEFAULT_REWARDS: Reward[] = [
+ ];
+ 
+ export const MerchantMenuProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+-  // Load from local storage or use defaults
+   const [menu, setMenu] = useState<MenuItem[]>(() => {
+     const saved = localStorage.getItem(STORAGE_KEYS.MERCHANT_STATE);
+-    if (saved) {
+-      const parsed = JSON.parse(saved);
+-      return parsed.menu || DEFAULT_MENU;
+-    }
+-    return DEFAULT_MENU;
++    return saved ? JSON.parse(saved).menu || DEFAULT_MENU : DEFAULT_MENU;
+   });
+-
+   const [rewards, setRewards] = useState<Reward[]>(() => {
+     const saved = localStorage.getItem(STORAGE_KEYS.MERCHANT_STATE);
+-    if (saved) {
+-      const parsed = JSON.parse(saved);
+-      return parsed.rewards || DEFAULT_REWARDS;
+-    }
+-    return DEFAULT_REWARDS;
++    return saved ? JSON.parse(saved).rewards || DEFAULT_REWARDS : DEFAULT_REWARDS;
+   });
++  const [isSaving, setIsSaving] = useState(false);
++  const [isLoading] = useState(false);
++
++  // Background Revalidation
++  useEffect(() => {
++    const revalidate = async () => {
++      const saved = await merchantService.fetchState();
++      if (saved) {
++        if (saved.menu) setMenu(saved.menu);
++        if (saved.rewards) setRewards(saved.rewards);
++      }
++    };
++    revalidate();
++  }, []);
++
++  // Real-time synchronization
++  useEffect(() => {
++    const unsub = realtimeService.subscribe('STATE_CHANGED', async (event: RealtimeEvent) => {
++      // Refresh if the update came from another tab or from the Ops provider
++      if (event.payload?.source !== 'menu') {
++        const saved = await merchantService.fetchState();
++        if (saved) {
++          if (saved.menu) setMenu(saved.menu);
++          if (saved.rewards) setRewards(saved.rewards);
++        }
++      }
++    });
++    return unsub;
++  }, []);
++
++  /**
++   * CENTRALIZED PERSISTENCE HELPER
++   * Standardizes the Fetch-Modify-Save pattern to prevent race conditions.
++   */
++  const performMenuUpdate = async (updater: (curMenu: MenuItem[], curRewards: Reward[]) => { nextMenu: MenuItem[], nextRewards: Reward[] }) => {
++    setIsSaving(true);
++    try {
++      const next = await merchantService.patchState(current => {
++        const { nextMenu, nextRewards } = updater(current.menu || menu, current.rewards || rewards);
++        return { ...current, menu: nextMenu, rewards: nextRewards };
++      }, 'menu');
++      
++      setMenu(next.menu || []);
++      setRewards(next.rewards || []);
++    } catch (err) {
++      console.error('Failed to persist menu state:', err);
++    } finally {
++      setIsSaving(false);
++    }
++  };
+ 
+-  // Removed redundant useEffect sync as MerchantOpsProvider handles global state persistence
+-
+-  const addMenuItem = (item: MenuItem) => {
+-    setMenu(prev => [...prev, { ...item, status: item.status || 'active' }]);
++  const addMenuItem = async (item: MenuItem) => {
++    await performMenuUpdate((m, r) => ({ 
++      nextMenu: [...m, { ...item, status: item.status || 'active' }], 
++      nextRewards: r 
++    }));
+   };
+ 
+-  const updateMenuItem = (item: MenuItem) => {
+-    setMenu(prev => prev.map(m => m.id === item.id ? item : m));
++  const updateMenuItem = async (item: MenuItem) => {
++    await performMenuUpdate((m, r) => ({ 
++      nextMenu: m.map(i => i.id === item.id ? item : i), 
++      nextRewards: r 
++    }));
+   };
+ 
+-  const archiveMenuItem = (id: string) => {
+-    setMenu(prev => prev.map(m => m.id === id ? { ...m, status: 'archived' } : m));
++  const archiveMenuItem = async (id: string) => {
++    await performMenuUpdate((m, r) => ({ 
++      nextMenu: m.map(i => i.id === id ? { ...i, status: 'archived' as const } : i), 
++      nextRewards: r 
++    }));
+   };
+ 
+-  const restoreMenuItem = (id: string) => {
+-    setMenu(prev => prev.map(m => m.id === id ? { ...m, status: 'active' } : m));
++  const restoreMenuItem = async (id: string) => {
++    await performMenuUpdate((m, r) => ({ 
++      nextMenu: m.map(i => i.id === id ? { ...i, status: 'active' as const } : i), 
++      nextRewards: r 
++    }));
+   };
+ 
+-  const deleteMenuItem = (id: string) => {
+-    setMenu(prev => prev.filter(m => m.id !== id));
++  const deleteMenuItem = async (id: string) => {
++    await performMenuUpdate((m, r) => ({ 
++      nextMenu: m.filter(i => i.id !== id), 
++      nextRewards: r 
++    }));
+   };
+ 
+-  const addReward = (reward: Reward) => {
+-    setRewards(prev => [...prev, reward]);
++  const addReward = async (reward: Reward) => {
++    await performMenuUpdate((m, r) => ({ 
++      nextMenu: m, 
++      nextRewards: [...r, reward] 
++    }));
+   };
+ 
+-  const updateReward = (reward: Reward) => {
+-    setRewards(prev => prev.map(r => r.id === reward.id ? reward : r));
++  const updateReward = async (reward: Reward) => {
++    await performMenuUpdate((m, r) => ({ 
++      nextMenu: m, 
++      nextRewards: r.map(i => i.id === reward.id ? reward : i) 
++    }));
+   };
+ 
+-  const deleteReward = (id: string) => {
+-    setRewards(prev => prev.filter(r => r.id !== id));
++  const deleteReward = async (id: string) => {
++    await performMenuUpdate((m, r) => ({ 
++      nextMenu: m, 
++      nextRewards: r.filter(i => i.id !== id) 
++    }));
+   };
+ 
+   return (
+     <MerchantMenuContext.Provider value={{ 
+       menu, 
+       rewards, 
++      isSaving,
++      isLoading,
+       addMenuItem, 
+       updateMenuItem, 
+       archiveMenuItem, 
+diff --git a/src/hooks/useMerchant.ts b/src/hooks/useMerchant.ts
+new file mode 100644
+index 0000000..4766461
+--- /dev/null
++++ b/src/hooks/useMerchant.ts
+@@ -0,0 +1,28 @@
++import { useContext, useMemo } from 'react';
++import { MerchantOpsContext, type MerchantOpsContextType } from '../context/MerchantContext';
++import { useMerchantAuth } from '../context/MerchantAuthContext';
++import { useMerchantMenu } from '../context/MerchantMenuContext';
++
++/**
++ * Unified hook that joins Merchant Operations, Authentication, and Menu domains.
++ * Maintains backward compatibility with components that expect a single useMerchant() hook.
++ */
++export const useMerchant = () => {
++  const ops = useContext(MerchantOpsContext) as MerchantOpsContextType;
++  const auth = useMerchantAuth();
++  const menu = useMerchantMenu();
++
++  if (!ops) {
++    throw new Error('useMerchant must be used within MerchantOpsProvider');
++  }
++
++  return useMemo(() => ({
++    ...ops,
++    ...auth,
++    ...menu,
++    isSaving: ops.isSaving || menu.isSaving,
++    isLoading: ops.isLoading || menu.isLoading,
++    // Ensure 'state' contains menu/rewards for components that expect it
++    state: { ...ops.state, menu: menu.menu, rewards: menu.rewards }
++  }), [ops, auth, menu]);
++};
+diff --git a/src/hooks/useResolvedCheck.ts b/src/hooks/useResolvedCheck.ts
+index 5292279..39ebac0 100644
+--- a/src/hooks/useResolvedCheck.ts
++++ b/src/hooks/useResolvedCheck.ts
+@@ -17,7 +17,7 @@ export const useResolvedCheck = (idOrSession: string): ResolvedCheck => {
+ 
+   // 1. Try finding an active check (by ID or Session ID)
+   const activeCheck = merchant.checks.find(
+-    c => c.id === idOrSession || c.sessionId === idOrSession
++    (c: any) => c.id === idOrSession || c.sessionId === idOrSession
+   );
+ 
+   if (activeCheck) {
+diff --git a/src/types/merchant.ts b/src/types/merchant.ts
+index 49f905f..63634a8 100644
+--- a/src/types/merchant.ts
++++ b/src/types/merchant.ts
+@@ -101,6 +101,7 @@ export interface MerchantActivity {
+ export interface PastOrder {
+   id: string;
+   checkId: string;
++  sessionId: string;
+   orders: OrderItem[];
+   total: number;
+   timestamp: string;
+diff --git a/src/utils/constants.ts b/src/utils/constants.ts
+index d0557c7..df177b1 100644
+--- a/src/utils/constants.ts
++++ b/src/utils/constants.ts
+@@ -6,6 +6,11 @@ export const STORAGE_KEYS = {
+   MERCHANT_STATE: 'merchant_state',
+   MERCHANT_AUTH: 'merchant_authenticated',
+   MERCHANT_USER: 'merchant_user',
++  CUSTOMER_PROFILE: 'customer_profile',
++  CUSTOMER_AUTH: 'customer_authenticated',
++  CUSTOMER_WALLET: 'customer_wallet',
++  CUSTOMER_ACTIVITIES: 'customer_activities',
++  PARTICIPANT_ID: 'participant_id',
+   THEME: 'theme',
+ } as const;
+ 
+diff --git a/src/utils/idUtils.ts b/src/utils/idUtils.ts
+new file mode 100644
+index 0000000..8a246c7
+--- /dev/null
++++ b/src/utils/idUtils.ts
+@@ -0,0 +1,18 @@
++/**
++ * Centralized ID generation utilities for the Bankdrop ecosystem.
++ * Using prefixes helps identify the type of entity and reduces collision risk.
++ */
++
++export const generateId = (prefix?: string) => {
++  const randomPart = Math.random().toString(36).substring(2, 10);
++  const timestampPart = Date.now().toString(36);
++  
++  if (prefix) {
++    return `${prefix}_${timestampPart}_${randomPart}`;
++  }
++  
++  return `${timestampPart}_${randomPart}`;
++};
++
++// Legacy compatibility for random 8-char IDs
++export const generateSimpleId = () => Math.random().toString(36).substring(2, 10);

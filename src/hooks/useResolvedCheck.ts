@@ -17,7 +17,7 @@ export const useResolvedCheck = (idOrSession: string): ResolvedCheck => {
 
   // 1. Try finding an active check (by ID or Session ID)
   const activeCheck = merchant.checks.find(
-    c => c.id === idOrSession || c.sessionId === idOrSession
+    (c: any) => c.id === idOrSession || c.sessionId === idOrSession
   );
 
   if (activeCheck) {

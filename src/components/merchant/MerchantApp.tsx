@@ -41,7 +41,7 @@ const viewToTab = (view: MerchantView): number => {
 
 // Main Layout Wrapper
 export const MerchantApp: React.FC = () => {
-  const { state, isAuthenticated } = useMerchant();
+  const { state, isAuthenticated, isSaving } = useMerchant();
   const [currentView, setCurrentView] = useState<MerchantView>('dashboard');
   const [isActionHubOpen, setIsActionHubOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -59,12 +59,14 @@ export const MerchantApp: React.FC = () => {
     return <MerchantAuth />;
   }
 
+
   // If business info or bank info isn't linked, force onboarding
   if (state.bankAccounts.length === 0 || !state.businessCategory) {
     return (
       <div className={styles.merchantLayout}>
         <div className={styles.header}>
           <div className={styles.title}>BANKDROP MERCHANT</div>
+          {isSaving && <div className={styles.syncIndicator}>Saving...</div>}
         </div>
         <div className={styles.content}>
           <MerchantOnboarding />
@@ -172,6 +174,17 @@ export const MerchantApp: React.FC = () => {
           </div>
         )}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          {isSaving && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className={styles.syncIndicator}
+              style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--brand-accent)' }} />
+              Syncing...
+            </motion.div>
+          )}
           <motion.button 
             whileTap={{ scale: 0.9 }} 
             onClick={() => navigateTo('profile')}

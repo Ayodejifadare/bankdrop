@@ -8,6 +8,7 @@ import { CheckoutAuth } from './CheckoutAuth';
 import { Landmark, ArrowLeft, UserPlus, Share2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AestheticQR } from '../merchant/QRManager';
+import { formatCurrency } from '../../utils/formatters';
 import styles from './CustomerUI.module.css';
 
 import { useResolvedCheck } from '../../hooks/useResolvedCheck';
@@ -91,20 +92,20 @@ export const CartView: React.FC<Props> = ({ checkId, onPay, onSplit, onBack }) =
               <span className={styles.itemQty}>{item.quantity}</span>
               <span className={styles.itemName}>{item.name}</span>
             </div>
-            <span className={styles.itemPrice}>₦{item.total.toLocaleString()}</span>
+            <span className={styles.itemPrice}>{formatCurrency(item.total)}</span>
           </motion.div>
         ))}
 
         {discount > 0 && (
           <div className={styles.discountRow}>
             <span>Reward Discount</span>
-            <span>-₦{discount.toLocaleString()}</span>
+            <span>-{formatCurrency(discount)}</span>
           </div>
         )}
 
         <div className={styles.totalRow}>
           <span className={styles.totalLabel}>Total</span>
-          <span className={styles.totalValue}>₦{finalTotal.toLocaleString()}</span>
+          <span className={styles.totalValue}>{formatCurrency(finalTotal)}</span>
         </div>
 
         {isAuthenticated ? (
@@ -122,7 +123,7 @@ export const CartView: React.FC<Props> = ({ checkId, onPay, onSplit, onBack }) =
             <UserPlus size={24} />
           </Button>
           <Button variant="accent" fullWidth size="large" onClick={() => onPay(finalTotal)}>
-            Pay ₦{finalTotal.toLocaleString()}
+            Pay {formatCurrency(finalTotal)}
           </Button>
         </div>
         <Button variant="outline" fullWidth size="large" onClick={onSplit}>

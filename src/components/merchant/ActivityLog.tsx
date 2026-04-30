@@ -58,7 +58,8 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
 
   const getDetails = (activity: MerchantActivity) => {
     if (activity.type === 'check_payment') {
-      return orderHistory.find(oh => oh.id === activity.referenceId);
+      // Lookup by sessionId (which is our referenceId) in orderHistory
+      return orderHistory.find(oh => oh.sessionId === activity.referenceId || oh.id === activity.referenceId);
     } else if (activity.type === 'invoice_payment') {
       return invoices.find(inv => inv.id === activity.referenceId);
     } else if (activity.type === 'quickpay') {
@@ -186,14 +187,15 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                               </div>
                             ) : 'orders' in details && details.orders ? (
                               details.orders.map((order: any, i: number) => {
-                                const item = menu.find(m => m.id === order.menuItemId);
+                                const menuItem = menu.find(m => m.id === order.menuItemId);
+                                const price = order.priceAtOrder || menuItem?.price || 0;
                                 return (
                                   <div key={i} className={styles.detailRow}>
                                     <div>
-                                      <div className={styles.detailName}>{item?.name || 'Unknown Item'}</div>
-                                      <div className={styles.detailQty}>{order.quantity} x {formatCurrency(item?.price || 0)}</div>
+                                      <div className={styles.detailName}>{menuItem?.name || 'Unknown Item'}</div>
+                                      <div className={styles.detailQty}>{order.quantity} x {formatCurrency(price)}</div>
                                     </div>
-                                    <div className={styles.detailPrice}>{formatCurrency((item?.price || 0) * order.quantity)}</div>
+                                    <div className={styles.detailPrice}>{formatCurrency(price * order.quantity)}</div>
                                   </div>
                                 );
                               })
@@ -202,9 +204,9 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                                 <div key={i} className={styles.detailRow}>
                                   <div>
                                     <div className={styles.detailName}>{item.name}</div>
-                                    <div className={styles.detailQty}>{item.quantity} x ₦{item.price.toLocaleString()}</div>
+                                    <div className={styles.detailQty}>{item.quantity} x {formatCurrency(item.price)}</div>
                                   </div>
-                                  <div className={styles.detailPrice}>₦{(item.price * item.quantity).toLocaleString()}</div>
+                                  <div className={styles.detailPrice}>{formatCurrency(item.price * item.quantity)}</div>
                                 </div>
                               ))
                             ) : null}
@@ -252,10 +254,11 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                                 ) : 'orders' in details ? (
                                   details.orders.map((o: any, i: number) => {
                                     const menuItem = menu.find(m => m.id === o.menuItemId);
+                                    const price = o.priceAtOrder || menuItem?.price || 0;
                                     return (
                                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                                        <span>{o.quantity} {menuItem?.name}</span>
-                                        <span>₦{((menuItem?.price || 0) * o.quantity).toLocaleString()}</span>
+                                        <span>{o.quantity} {menuItem?.name || 'Unknown'}</span>
+                                        <span>{formatCurrency(price * o.quantity)}</span>
                                       </div>
                                     );
                                   })
@@ -263,14 +266,14 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ onBack }) => {
                                   details.items.map((item: any, j: number) => (
                                     <div key={j} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                                       <span>{item.quantity} {item.name}</span>
-                                      <span>₦{(item.price * item.quantity).toLocaleString()}</span>
+                                      <span>{formatCurrency(item.price * item.quantity)}</span>
                                     </div>
                                   ))
                                 )}
                                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }} />
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}>
                                   <span>TOTAL</span>
-                                  <span>₦{activity.amount.toLocaleString()}</span>
+                                  <span>{formatCurrency(activity.amount)}</span>
                                 </div>
                                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }} />
                                 <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '10px' }}>

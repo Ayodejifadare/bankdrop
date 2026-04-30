@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useEffect, useState } from 'react';
 import type { 
   BankAccount, 
   OrderItem, 
@@ -11,43 +11,49 @@ import type {
   MerchantPreferences,
   MerchantContactInfo
 } from '../types/merchant';
-import { MERCHANT_LIMITS, STORAGE_KEYS } from '../utils/constants';
-import { MerchantAuthProvider, useMerchantAuth } from './MerchantAuthContext';
+import { MERCHANT_LIMITS } from '../utils/constants';
+import { MerchantAuthProvider } from './MerchantAuthContext';
 import { MerchantMenuProvider, useMerchantMenu } from './MerchantMenuContext';
+import { merchantService, profileService, realtimeService } from '../api/dataService';
+import type { RealtimeEvent } from '../api/realtimeService';
+import { STORAGE_KEYS } from '../utils/constants';
+import { generateId } from '../utils/idUtils';
 
 // Re-export sub-context hooks for convenience
 export { useMerchantAuth } from './MerchantAuthContext';
 export { useMerchantMenu } from './MerchantMenuContext';
 
-interface MerchantOpsContextType {
+export interface MerchantOpsContextType {
   state: MerchantState;
-  addBankAccount: (bank: Omit<BankAccount, 'id' | 'isPrimary'>) => void;
-  removeBankAccount: (id: string) => void;
-  setPrimaryBankAccount: (id: string) => void;
-  updateBusinessInfo: (info: { name: string; profile: string; category: string }) => void;
-  updateCheckStatus: (id: string, status: 'open' | 'active' | 'paid') => void;
-  addOrderToCheck: (checkId: string, item: OrderItem) => void;
-  addOrdersToCheck: (checkId: string, items: OrderItem[]) => void;
-  updateOrderQuantity: (checkId: string, menuItemId: string, quantityDelta: number) => void;
-  createInvoice: (invoice: Invoice) => void;
-  updateInvoice: (invoice: Invoice) => void;
-  updateInvoiceStatus: (id: string, status: Invoice['status']) => void;
-  requestVerification: (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => void;
-  resolveVerification: (id: string, confirmed: boolean, confirmedAmount?: number) => void;
-  resetCheck: (id: string) => void;
-  updatePreferences: (prefs: Partial<MerchantPreferences>) => void;
-  updateContactInfo: (contact: Partial<MerchantContactInfo>) => void;
-  toggleCheckEnabled: (checkId: string) => void;
-  addCheck: () => void;
-  linkBankAccountToCheck: (checkId: string, bankAccountId: string | undefined) => void;
-  setCheckPaymentMode: (checkId: string, mode: 'itemized' | 'quickpay') => void;
-  startCheckSession: (checkId: string) => string;
+  isSaving: boolean;
+  isLoading: boolean;
+  addBankAccount: (bank: Omit<BankAccount, 'id' | 'isPrimary'>) => Promise<void>;
+  removeBankAccount: (id: string) => Promise<void>;
+  setPrimaryBankAccount: (id: string) => Promise<void>;
+  updateBusinessInfo: (info: { name: string; profile: string; category: string }) => Promise<void>;
+  updateCheckStatus: (id: string, status: 'open' | 'active' | 'paid') => Promise<void>;
+  addOrderToCheck: (checkId: string, item: OrderItem) => Promise<void>;
+  addOrdersToCheck: (checkId: string, items: OrderItem[]) => Promise<void>;
+  updateOrderQuantity: (checkId: string, menuItemId: string, quantityDelta: number) => Promise<void>;
+  createInvoice: (invoice: Invoice) => Promise<void>;
+  updateInvoice: (invoice: Invoice) => Promise<void>;
+  updateInvoiceStatus: (id: string, status: Invoice['status']) => Promise<void>;
+  requestVerification: (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => Promise<void>;
+  resolveVerification: (id: string, confirmed: boolean, confirmedAmount?: number) => Promise<void>;
+  resetCheck: (id: string) => Promise<void>;
+  updatePreferences: (prefs: Partial<MerchantPreferences>) => Promise<void>;
+  updateContactInfo: (contact: Partial<MerchantContactInfo>) => Promise<void>;
+  toggleCheckEnabled: (checkId: string) => Promise<void>;
+  addCheck: () => Promise<void>;
+  linkBankAccountToCheck: (checkId: string, bankAccountId: string | undefined) => Promise<void>;
+  setCheckPaymentMode: (checkId: string, mode: 'itemized' | 'quickpay') => Promise<void>;
+  startCheckSession: (checkId: string) => Promise<string>;
 }
 
-const MerchantOpsContext = createContext<MerchantOpsContextType | undefined>(undefined);
+export const MerchantOpsContext = createContext<MerchantOpsContextType | undefined>(undefined);
 
-// Hardened ID generator
-const genId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+// genId is replaced by generateId utility
+
 
 const { MAX_ARCHIVED_SESSIONS, MAX_ORDER_HISTORY, MAX_ACTIVITIES } = MERCHANT_LIMITS;
 
@@ -81,36 +87,59 @@ const INITIAL_OPS_STATE: MerchantState = {
 
 const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { menu, rewards } = useMerchantMenu();
-
   const [state, setState] = useState<MerchantState>(() => {
-    const saved = localStorage.getItem('merchant_state');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return { 
-        ...INITIAL_OPS_STATE, 
-        ...parsed,
-        menu: [], // Ensure these are kept empty in Ops state to avoid sync issues
-        rewards: []
-      };
-    }
-    return INITIAL_OPS_STATE;
-  });
-
-  // Sync to localStorage - Consistently handle merging to avoid race conditions
-  useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.MERCHANT_STATE);
-    const currentPersisted = saved ? JSON.parse(saved) : {};
+    const loaded = saved ? JSON.parse(saved) : {};
     
-    // Only persist what Ops/Root owns, but keep menu/rewards updated in the global object
-    const updatedPersisted = {
-      ...currentPersisted,
-      ...state,
-      menu, 
-      rewards
+    // HYDRATION SAFETY NET: Deep merge to prevent missing arrays from crashing legacy merchants
+    return { 
+      ...INITIAL_OPS_STATE, 
+      ...loaded,
+      preferences: { ...INITIAL_OPS_STATE.preferences, ...(loaded.preferences || {}) },
+      contactInfo: { ...(INITIAL_OPS_STATE.contactInfo || {}), ...(loaded.contactInfo || {}) },
+      menu: [], 
+      rewards: [] 
     };
-    
-    localStorage.setItem(STORAGE_KEYS.MERCHANT_STATE, JSON.stringify(updatedPersisted));
-  }, [state, menu, rewards]);
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading] = useState(false);
+
+  // Background Revalidation
+  useEffect(() => {
+    const revalidate = async () => {
+      const saved = await merchantService.fetchState();
+      if (saved) {
+        setState(prev => ({
+          ...prev,
+          ...saved,
+          menu: [],
+          rewards: []
+        }));
+      }
+    };
+    revalidate();
+  }, []);
+
+  // Real-time synchronization
+  useEffect(() => {
+    const unsub = realtimeService.subscribe('STATE_CHANGED', async (event: RealtimeEvent) => {
+      // Only refresh if the update came from another tab (storage_event) 
+      // or another provider in the same tab (menu)
+      if (event.payload?.source !== 'ops') {
+        const saved = await merchantService.fetchState();
+        if (saved) {
+          setState(prev => ({
+            ...prev,
+            ...saved,
+            menu: [], // Keep managed by MenuContext
+            rewards: []
+          }));
+        }
+      }
+    });
+    return unsub;
+  }, []);
+
 
   // Deep Prune on Mount
   useEffect(() => {
@@ -120,20 +149,21 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // --- Helper Methods (Internal) ---
   const _archiveCheckState = (checkId: string, check: Check, source: string) => {
-    const pastOrderId = genId('ord');
-    const sessionId = check.sessionId || genId('SESS');
+    const pastOrderId = generateId('ord');
+    const sessionId = check.sessionId || generateId('SESS');
     const timestamp = new Date().toISOString();
 
     const pastOrder: PastOrder = {
       id: pastOrderId,
       checkId: checkId,
+      sessionId,
       orders: [...check.orders],
       total: check.total,
       timestamp
     };
 
     const activity: MerchantActivity = {
-      id: genId('act'),
+      id: generateId('act'),
       type: 'check_payment',
       amount: check.total,
       referenceId: sessionId,
@@ -176,9 +206,30 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (sessionKeys.length > MAX_ARCHIVED_SESSIONS) {
       const keysToRemove = sessionKeys.slice(0, sessionKeys.length - MAX_ARCHIVED_SESSIONS);
       const newArchived = { ...archivedSessions };
-      keysToRemove.forEach(k => delete newArchived[k]);
+      keysToRemove.forEach(k => {
+        delete newArchived[k];
+        // SIDE EFFECT: Cleanup split session data to prevent storage bloat
+        localStorage.removeItem(`check_split_${k}`);
+      });
       archivedSessions = newArchived;
     }
+    
+    // Cleanup any orphaned check_split keys that aren't in archivedSessions 
+    // and aren't active in any check
+    try {
+      const activeSessions = new Set(state.checks.map(c => c.sessionId).filter(Boolean));
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('check_split_')) {
+          const sId = key.replace('check_split_', '');
+          if (!activeSessions.has(sId) && !archivedSessions[sId]) {
+             localStorage.removeItem(key);
+          }
+        }
+      });
+    } catch (e) {
+      // Silently fail if localStorage access issues
+    }
+
     return { ...state, activities, orderHistory, archivedSessions };
   };
 
@@ -190,64 +241,127 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return [newAct, ...activities];
   };
 
+  /**
+   * CENTRALIZED PERSISTENCE HELPER
+   * Standardizes the Fetch-Modify-Save pattern to prevent race conditions.
+   * Now with Optimistic UI for instant feedback.
+   */
+  const performOpsUpdate = async (updater: (current: MerchantState) => MerchantState) => {
+    const prevState = state;
+    
+    // 1. Apply Optimistic Update
+    const optimisticState = updater(state);
+    setState(optimisticState);
+    setIsSaving(true);
+    
+    try {
+      // 2. Persist in background
+      const next = await merchantService.patchState(current => {
+        const isStorageEmpty = Object.keys(current).length === 0;
+        const safeCurrent = isStorageEmpty ? state : { ...INITIAL_OPS_STATE, ...current };
+
+        const nextOps = updater(safeCurrent);
+        
+        // DE-DUPLICATION: Ensure checks are unique by ID to prevent dashboard ghosting
+        const uniqueChecks = nextOps.checks.reduce((acc: Check[], check) => {
+          if (!acc.find(c => c.id === check.id)) acc.push(check);
+          return acc;
+        }, []);
+
+        return {
+          ...nextOps,
+          checks: uniqueChecks,
+          menu: safeCurrent.menu || [],
+          rewards: safeCurrent.rewards || []
+        };
+      }, 'ops');
+      
+      setState(next);
+    } catch (err) {
+      console.error('Failed to persist merchant state, rolling back:', err);
+      setState(prevState);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // --- Public Methods ---
-  const addBankAccount = (bank: Omit<BankAccount, 'id' | 'isPrimary'>) => {
-    setState(prev => ({ 
-      ...prev, 
-      bankAccounts: [...prev.bankAccounts, { ...bank, id: genId('acc'), isPrimary: prev.bankAccounts.length === 0 }] 
+  const addBankAccount = async (bank: Omit<BankAccount, 'id' | 'isPrimary'>) => {
+    await performOpsUpdate(current => ({ 
+      ...current, 
+      bankAccounts: [...current.bankAccounts, { ...bank, id: generateId('acc'), isPrimary: current.bankAccounts.length === 0 }] 
     }));
   };
 
-  const removeBankAccount = (id: string) => {
-    setState(prev => {
-      const newAccounts = prev.bankAccounts.filter(acc => acc.id !== id);
-      if (prev.bankAccounts.find(acc => acc.id === id)?.isPrimary && newAccounts.length > 0) {
+  const removeBankAccount = async (id: string) => {
+    await performOpsUpdate(current => {
+      const newAccounts = current.bankAccounts.filter(acc => acc.id !== id);
+      if (current.bankAccounts.find(acc => acc.id === id)?.isPrimary && newAccounts.length > 0) {
         newAccounts[0].isPrimary = true;
       }
-      return { ...prev, bankAccounts: newAccounts };
+      return { ...current, bankAccounts: newAccounts };
     });
   };
 
-  const setPrimaryBankAccount = (id: string) => {
-    setState(prev => ({
-      ...prev,
-      bankAccounts: prev.bankAccounts.map(acc => ({ ...acc, isPrimary: acc.id === id }))
+  const setPrimaryBankAccount = async (id: string) => {
+    await performOpsUpdate(current => ({
+      ...current,
+      bankAccounts: current.bankAccounts.map(acc => ({ ...acc, isPrimary: acc.id === id }))
     }));
   };
 
-  const updateBusinessInfo = (info: { name: string; profile: string; category: string }) => {
-    setState(prev => ({ ...prev, name: info.name, businessProfile: info.profile, businessCategory: info.category }));
+  const updateBusinessInfo = async (info: { name: string; profile: string; category: string }) => {
+    await performOpsUpdate(current => ({ 
+      ...current, 
+      name: info.name, 
+      businessProfile: info.profile, 
+      businessCategory: info.category 
+    }));
   };
 
-  const updateCheckStatus = (id: string, status: 'open' | 'active' | 'paid') => {
-    setState(prev => {
+  const updateCheckStatus = async (id: string, status: 'open' | 'active' | 'paid') => {
+    await performOpsUpdate(current => {
       if (status === 'paid') {
-        const check = prev.checks.find(c => c.id === id);
+        const check = current.checks.find(c => c.id === id || c.sessionId === id);
         if (check && check.total > 0) {
-          const { pastOrder, activity, sessionId } = _archiveCheckState(id, check, 'Paid and settled');
+          const { pastOrder, activity, sessionId } = _archiveCheckState(check.id, check, 'Paid and settled');
           return _pruneState({
-            ...prev,
-            checks: prev.checks.map(c => c.id === id ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c),
-            activities: _addActivity(prev.activities, activity),
-            orderHistory: [pastOrder, ...prev.orderHistory],
-            archivedSessions: { ...prev.archivedSessions, [sessionId]: pastOrder }
+            ...current,
+            checks: current.checks.map(c => (c.id === check.id) ? { 
+              ...c, 
+              status: 'open', 
+              orders: [], 
+              total: 0, 
+              sessionId: undefined,
+              lifetimeOrders: (c.lifetimeOrders || 0) + c.orders.length,
+              lifetimeRevenue: (c.lifetimeRevenue || 0) + c.total
+            } : c),
+            activities: _addActivity(current.activities, activity),
+            orderHistory: [pastOrder, ...current.orderHistory],
+            archivedSessions: { ...current.archivedSessions, [sessionId]: pastOrder }
           });
         }
       }
-      return { ...prev, checks: prev.checks.map(c => c.id === id ? { ...c, status } : c) };
+      return { ...current, checks: current.checks.map(c => (c.id === id || c.sessionId === id) ? { ...c, status } : c) };
     });
   };
 
-  const addOrdersToCheck = (checkId: string, items: OrderItem[]) => {
-    setState(prev => ({
-      ...prev,
-      checks: prev.checks.map(c => {
-        if (c.id !== checkId) return c;
+  const addOrdersToCheck = async (checkId: string, items: OrderItem[]) => {
+    await performOpsUpdate(current => ({
+      ...current,
+      checks: current.checks.map(c => {
+        if (c.id !== checkId && c.sessionId !== checkId) return c;
         const newOrders = [...c.orders];
         let totalDelta = 0;
+        
+        // Use current.menu from the latest storage state instead of the (possibly stale) context menu
+        const activeMenu = current.menu || [];
+        
         items.forEach(item => {
-          const menuPrice = menu.find(m => m.id === item.menuItemId)?.price || 0;
+          const menuItem = activeMenu.find(m => m.id === item.menuItemId);
+          const menuPrice = menuItem?.price || 0;
           const idx = newOrders.findIndex(o => o.menuItemId === item.menuItemId);
+          
           if (idx >= 0) {
             newOrders[idx] = { ...newOrders[idx], quantity: newOrders[idx].quantity + item.quantity };
             totalDelta += newOrders[idx].priceAtOrder * item.quantity;
@@ -257,169 +371,262 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
             totalDelta += price * item.quantity;
           }
         });
-        return { ...c, status: 'active', orders: newOrders, total: c.total + totalDelta, sessionId: c.sessionId || genId('SESS') };
+        return { ...c, status: 'active', orders: newOrders, total: c.total + totalDelta, sessionId: c.sessionId || generateId('SESS') };
       })
     }));
   };
 
-  const addOrderToCheck = (checkId: string, item: OrderItem) => addOrdersToCheck(checkId, [item]);
+  const addOrderToCheck = async (checkId: string, item: OrderItem) => await addOrdersToCheck(checkId, [item]);
 
-  const updateOrderQuantity = (checkId: string, menuItemId: string, quantityDelta: number) => {
-    setState(prev => {
-      const menuPrice = menu.find(m => m.id === menuItemId)?.price || 0;
-      return {
-        ...prev,
-        checks: prev.checks.map(c => {
-          if (c.id !== checkId) return c;
-          const idx = c.orders.findIndex(o => o.menuItemId === menuItemId);
-          if (idx === -1 && quantityDelta <= 0) return c;
-          const newOrders = [...c.orders];
-          let delta = 0;
-          if (idx >= 0) {
-            const item = newOrders[idx];
-            const newQty = Math.max(0, item.quantity + quantityDelta);
-            if (newQty === 0) {
-              newOrders.splice(idx, 1);
-              delta = -(item.priceAtOrder * item.quantity);
-            } else {
-              newOrders[idx] = { ...item, quantity: newQty };
-              delta = item.priceAtOrder * quantityDelta;
-            }
+  const updateOrderQuantity = async (checkId: string, menuItemId: string, quantityDelta: number) => {
+    await performOpsUpdate(current => ({
+      ...current,
+      checks: current.checks.map(c => {
+        if (c.id !== checkId && c.sessionId !== checkId) return c;
+        const idx = c.orders.findIndex(o => o.menuItemId === menuItemId);
+        if (idx === -1 && quantityDelta <= 0) return c;
+        const newOrders = [...c.orders];
+        let delta = 0;
+        if (idx >= 0) {
+          const item = newOrders[idx];
+          const newQty = Math.max(0, item.quantity + quantityDelta);
+          if (newQty === 0) {
+            newOrders.splice(idx, 1);
+            delta = -(item.priceAtOrder * item.quantity);
           } else {
-            newOrders.push({ menuItemId, quantity: quantityDelta, priceAtOrder: menuPrice });
-            delta = menuPrice * quantityDelta;
+            newOrders[idx] = { ...item, quantity: newQty };
+            delta = item.priceAtOrder * quantityDelta;
           }
-          return { ...c, status: newOrders.length > 0 ? 'active' : 'open', orders: newOrders, total: Math.max(0, c.total + delta) };
-        })
-      };
-    });
+        } else {
+          const activeMenu = current.menu || [];
+          const menuPrice = activeMenu.find(m => m.id === menuItemId)?.price || 0;
+          newOrders.push({ menuItemId, quantity: quantityDelta, priceAtOrder: menuPrice });
+          delta = menuPrice * quantityDelta;
+        }
+        return { ...c, status: newOrders.length > 0 ? 'active' : 'open', orders: newOrders, total: Math.max(0, c.total + delta) };
+      })
+    }));
   };
 
-  const createInvoice = (invoice: Invoice) => setState(prev => ({ ...prev, invoices: [invoice, ...prev.invoices] }));
-  const updateInvoice = (invoice: Invoice) => setState(prev => ({ ...prev, invoices: prev.invoices.map(inv => inv.id === invoice.id ? invoice : inv) }));
+  const createInvoice = async (invoice: Invoice) => {
+    await performOpsUpdate(current => ({ ...current, invoices: [invoice, ...current.invoices] }));
+  };
+  const updateInvoice = async (invoice: Invoice) => {
+    await performOpsUpdate(current => ({ ...current, invoices: current.invoices.map(inv => inv.id === invoice.id ? invoice : inv) }));
+  };
 
-  const updateInvoiceStatus = (id: string, status: Invoice['status']) => {
-    setState(prev => {
-      let activities = prev.activities;
+  const updateInvoiceStatus = async (id: string, status: Invoice['status']) => {
+    await performOpsUpdate(current => {
+      let activities = current.activities;
       if (status === 'paid') {
-        const inv = prev.invoices.find(c => c.id === id);
+        const inv = current.invoices.find(c => c.id === id);
         if (inv) {
-          activities = _addActivity(prev.activities, {
-            id: genId('act'), type: 'invoice_payment', amount: inv.total, referenceId: id,
+          activities = _addActivity(current.activities, {
+            id: generateId('act'), type: 'invoice_payment', amount: inv.total, referenceId: id,
             title: `Invoice ${id}`, subtitle: `Paid by ${inv.customerName}`, timestamp: new Date().toISOString()
           });
         }
       }
-      return _pruneState({ ...prev, invoices: prev.invoices.map(inv => inv.id === id ? { ...inv, status } : inv), activities });
+      return _pruneState({
+        ...current,
+        invoices: current.invoices.map(inv => inv.id === id ? { ...inv, status } : inv),
+        activities
+      });
     });
   };
 
-  const requestVerification = (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => {
-    setState(prev => {
-      const verifications = prev.pendingVerifications || [];
-      if (verifications.some(v => v.targetId === verification.targetId && v.type === verification.type && v.status === 'pending')) return prev;
-      return { ...prev, pendingVerifications: [...verifications, { ...verification, id: genId('VER'), timestamp: new Date().toISOString(), status: 'pending' }] };
+  const requestVerification = async (verification: Omit<PendingVerification, 'id' | 'timestamp' | 'status'>) => {
+    await performOpsUpdate(current => {
+      const verifications = current.pendingVerifications || [];
+      if (verifications.some(v => v.targetId === verification.targetId && v.type === verification.type && v.status === 'pending')) return current;
+      return { 
+        ...current, 
+        pendingVerifications: [...verifications, { ...verification, id: generateId('VER'), timestamp: new Date().toISOString(), status: 'pending' }] 
+      };
     });
   };
 
-  const resolveVerification = (id: string, confirmed: boolean, confirmedAmount?: number) => {
-    setState(prev => {
-      const verifications = prev.pendingVerifications || [];
+  const resolveVerification = async (id: string, confirmed: boolean, confirmedAmount?: number) => {
+    await performOpsUpdate(current => {
+      const verifications = current.pendingVerifications || [];
       const idx = verifications.findIndex(v => v.id === id);
-      if (idx === -1) return prev;
+      if (idx === -1) return current;
+      
       const v = verifications[idx];
       const newVerifications = [...verifications];
       newVerifications[idx] = { ...v, status: confirmed ? 'confirmed' : 'declined' };
-      const nextState = { ...prev, pendingVerifications: newVerifications };
+      let nextState = { ...current, pendingVerifications: newVerifications };
 
       if (confirmed) {
         if (v.type === 'check') {
-          const check = prev.checks.find(c => c.id === v.targetId);
-          if (check && check.orders.length > 0) {
-            const { pastOrder, activity, sessionId } = _archiveCheckState(v.targetId, check, 'Paid and settled (Remote)');
-            return _pruneState({
-              ...nextState,
-              checks: nextState.checks.map(c => c.id === v.targetId ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c),
-              activities: _addActivity(nextState.activities, activity),
-              orderHistory: [pastOrder, ...nextState.orderHistory],
-              archivedSessions: { ...nextState.archivedSessions, [sessionId]: pastOrder }
-            });
+          // Find check by ID or Session ID
+          const check = current.checks.find(c => c.id === v.targetId || c.sessionId === v.targetId);
+          if (check) {
+            // REGRESSION FIX: Only reset check if this payment covers the remaining balance
+            const isFullPayment = v.amount >= (check.total - 1); // 1 unit tolerance for rounding
+
+            if (isFullPayment) {
+              const { pastOrder, activity, sessionId } = _archiveCheckState(check.id, check, 'Paid and settled (Remote)');
+              nextState = _pruneState({
+                ...nextState,
+                checks: nextState.checks.map(c => (c.id === check.id) ? { 
+                  ...c, 
+                  status: 'open', 
+                  orders: [], 
+                  total: 0, 
+                  sessionId: undefined,
+                  lifetimeOrders: (c.lifetimeOrders || 0) + c.orders.length,
+                  lifetimeRevenue: (c.lifetimeRevenue || 0) + c.total
+                } : c),
+                activities: _addActivity(nextState.activities, activity),
+                orderHistory: [pastOrder, ...nextState.orderHistory],
+                archivedSessions: { ...nextState.archivedSessions, [sessionId]: pastOrder }
+              });
+            } else {
+              // PARTIAL PAYMENT: Just subtract the amount and keep the check/session active
+              nextState = {
+                ...nextState,
+                checks: nextState.checks.map(c => (c.id === check.id) ? {
+                  ...c,
+                  total: Math.max(0, c.total - v.amount),
+                  lifetimeRevenue: (c.lifetimeRevenue || 0) + v.amount
+                } : c),
+                activities: _addActivity(nextState.activities, {
+                  id: generateId('act'),
+                  type: 'check_payment',
+                  amount: v.amount,
+                  referenceId: v.targetId,
+                  title: `Partial Payment: Check #${check.id}`,
+                  subtitle: `Verified share payment`,
+                  timestamp: new Date().toISOString()
+                })
+              };
+            }
           }
         } else if (v.type === 'invoice') {
-          const inv = prev.invoices.find(i => i.id === v.targetId);
-          return _pruneState({
+          const inv = current.invoices.find(i => i.id === v.targetId);
+          nextState = _pruneState({
             ...nextState,
             invoices: nextState.invoices.map(i => i.id === v.targetId ? { ...i, status: 'paid' } : i),
             activities: _addActivity(nextState.activities, {
-              id: genId('act'), type: 'invoice_payment', amount: confirmedAmount || v.amount, referenceId: v.targetId,
+              id: generateId('act'), type: 'invoice_payment', amount: confirmedAmount || v.amount, referenceId: v.targetId,
               title: `Invoice ${v.targetId}`, subtitle: inv ? `Paid by ${inv.customerName}` : 'Verified remote payment', timestamp: new Date().toISOString()
             })
           });
         } else if (v.type === 'quickpay') {
-          return _pruneState({
+          nextState = _pruneState({
             ...nextState,
             activities: _addActivity(nextState.activities, {
-              id: genId('act'), type: 'quickpay', amount: confirmedAmount || v.amount, referenceId: v.targetId || v.id,
+              id: generateId('act'), type: 'quickpay', amount: confirmedAmount || v.amount, referenceId: v.targetId || v.id,
               title: 'Quickpay', subtitle: 'Received via QR Terminal', timestamp: new Date().toISOString()
             })
           });
         }
+        
+        // SYNC: Complete any customer activity linked to this targetId
+        profileService.completeActivityByReference(v.targetId);
       }
       return _pruneState(nextState);
     });
   };
 
-  const resetCheck = (id: string) => setState(prev => ({ ...prev, checks: prev.checks.map(c => c.id === id ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c) }));
-  const updatePreferences = (prefs: Partial<MerchantPreferences>) => setState(prev => ({ ...prev, preferences: { ...prev.preferences, ...prefs } }));
-  const updateContactInfo = (contact: Partial<MerchantContactInfo>) => setState(prev => ({ ...prev, contactInfo: { ...prev.contactInfo!, ...contact } }));
-  const toggleCheckEnabled = (checkId: string) => {
-    setState(prev => ({
-      ...prev,
-      checks: prev.checks.map(c => {
+  const resetCheck = async (id: string) => {
+    await performOpsUpdate(current => ({ 
+      ...current, 
+      checks: current.checks.map(c => (c.id === id || c.sessionId === id) ? { ...c, status: 'open', orders: [], total: 0, sessionId: undefined } : c) 
+    }));
+  };
+  const updatePreferences = async (prefs: Partial<MerchantPreferences>) => {
+    await performOpsUpdate(current => ({ 
+      ...current, 
+      preferences: { ...current.preferences, ...prefs } 
+    }));
+  };
+  const updateContactInfo = async (contact: Partial<MerchantContactInfo>) => {
+    await performOpsUpdate(current => ({ 
+      ...current, 
+      contactInfo: { ...current.contactInfo!, ...contact } 
+    }));
+  };
+  const toggleCheckEnabled = async (checkId: string) => {
+    await performOpsUpdate(current => ({
+      ...current,
+      checks: current.checks.map(c => {
         if (c.id !== checkId) return c;
         if (c.enabled) {
           if (c.status !== 'open') return c;
-          const checkOrders = prev.orderHistory.filter(o => o.checkId === checkId);
-          return { ...c, enabled: false, archivedAt: new Date().toISOString(), lifetimeOrders: (c.lifetimeOrders || 0) + checkOrders.reduce((sum, o) => sum + o.orders.length, 0), lifetimeRevenue: (c.lifetimeRevenue || 0) + checkOrders.reduce((sum, o) => sum + o.total, 0) };
+          // Stats are now captured incrementally at checkout, no need to back-calculate here
+          return { ...c, enabled: false, archivedAt: new Date().toISOString() };
         }
         return { ...c, enabled: true, archivedAt: undefined };
       })
     }));
   };
 
-  const addCheck = () => {
-    setState(prev => {
-      const maxId = prev.checks.reduce((max, c) => Math.max(max, parseInt(c.id) || 0), 0);
-      return { ...prev, checks: [...prev.checks, { id: `${maxId + 1}`, status: 'open', enabled: true, orders: [], total: 0 }] };
+  const addCheck = async () => {
+    await performOpsUpdate(current => {
+      const maxId = current.checks.reduce((max, c) => Math.max(max, parseInt(c.id) || 0), 0);
+      const newCheck: Check = { id: `${maxId + 1}`, status: 'open', enabled: true, orders: [], total: 0 };
+      return { ...current, checks: [...current.checks, newCheck] };
     });
   };
 
-  const linkBankAccountToCheck = (checkId: string, bankAccountId: string | undefined) => setState(prev => ({ ...prev, checks: prev.checks.map(c => c.id === checkId ? { ...c, bankAccountId } : c) }));
-  const setCheckPaymentMode = (checkId: string, mode: 'itemized' | 'quickpay') => setState(prev => ({ ...prev, checks: prev.checks.map(c => c.id === checkId ? { ...c, paymentMode: mode } : c) }));
+  const linkBankAccountToCheck = async (checkId: string, bankAccountId: string | undefined) => {
+    await performOpsUpdate(current => ({ 
+      ...current, 
+      checks: current.checks.map(c => (c.id === checkId || c.sessionId === checkId) ? { ...c, bankAccountId } : c) 
+    }));
+  };
+  const setCheckPaymentMode = async (checkId: string, mode: 'itemized' | 'quickpay') => {
+    await performOpsUpdate(current => ({ 
+      ...current, 
+      checks: current.checks.map(c => (c.id === checkId || c.sessionId === checkId) ? { ...c, paymentMode: mode } : c) 
+    }));
+  };
 
-  const startCheckSession = (checkId: string) => {
-    const newSessionId = genId('SESS');
-    setState(prev => {
-      const check = prev.checks.find(c => c.id === checkId);
-      if (!check) return prev;
-      let nextState = { ...prev };
-      let activities = prev.activities;
-      const orderHistory = [...prev.orderHistory];
+  const startCheckSession = async (checkId: string) => {
+    const newSessionId = generateId('SESS');
+    
+    await performOpsUpdate(current => {
+      const check = current.checks.find(c => c.id === checkId);
+      if (!check) return current;
+
+      let nextState = { ...current };
+      let orderHistory = [...current.orderHistory];
+      let activities = current.activities;
+
+      // Archive previous session if it had data
       if (check.sessionId && (check.orders.length > 0 || check.total > 0)) {
         const { pastOrder, activity, sessionId } = _archiveCheckState(checkId, check, 'Table reset by new scan');
-        orderHistory.unshift(pastOrder);
-        activities = _addActivity(prev.activities, activity);
-        nextState.archivedSessions = { ...prev.archivedSessions, [sessionId]: pastOrder };
+        orderHistory = [pastOrder, ...orderHistory];
+        activities = _addActivity(current.activities, activity);
+        nextState.archivedSessions = { ...current.archivedSessions, [sessionId]: pastOrder };
       }
-      nextState.checks = nextState.checks.map(c => c.id === checkId ? { ...c, status: 'open', orders: [], total: 0, sessionId: newSessionId } : c);
+
+      // Reset check and assign new session
+      nextState.checks = nextState.checks.map(c => 
+        c.id === checkId ? { 
+          ...c, 
+          status: 'open', 
+          orders: [], 
+          total: 0, 
+          sessionId: newSessionId,
+          lifetimeOrders: (c.lifetimeOrders || 0) + (check.orders?.length || 0),
+          lifetimeRevenue: (c.lifetimeRevenue || 0) + (check.total || 0)
+        } : c
+      );
+
       return _pruneState({ ...nextState, activities, orderHistory });
     });
+
     return newSessionId;
   };
 
   return (
     <MerchantOpsContext.Provider value={{
       state: { ...state, menu, rewards }, // Unified state for backward compat
+      isSaving,
+      isLoading,
       addBankAccount, removeBankAccount, setPrimaryBankAccount, updateBusinessInfo,
       updateCheckStatus, addOrderToCheck, addOrdersToCheck, updateOrderQuantity,
       createInvoice, updateInvoice, updateInvoiceStatus, requestVerification,
@@ -444,19 +651,4 @@ export const MerchantProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
 };
 
-// --- Unified Hook (Backward Compatible) ---
-export const useMerchant = () => {
-  const ops = useContext(MerchantOpsContext);
-  const auth = useMerchantAuth();
-  const menu = useMerchantMenu();
-
-  if (!ops) throw new Error('useMerchant must be used within MerchantProvider');
-
-  return useMemo(() => ({
-    ...ops,
-    ...auth,
-    ...menu,
-    // Ensure 'state' contains menu/rewards for components that expect it
-    state: { ...ops.state, menu: menu.menu, rewards: menu.rewards }
-  }), [ops, auth, menu]);
-};
+export { useMerchant } from '../hooks/useMerchant';

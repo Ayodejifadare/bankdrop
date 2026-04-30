@@ -1,26 +1,37 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { LinkedAccount, VendorReward, Activity, UserProfile } from '../types/profile';
+import { profileService, realtimeService } from '../api/dataService';
+import type { RealtimeEvent } from '../api/realtimeService';
+import { STORAGE_KEYS } from '../utils/constants';
+import { generateId } from '../utils/idUtils';
 
 interface CustomerProfileContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   isLoadingAuth: boolean;
+  isSaving: boolean;
+  isLoading: boolean;
   wallet: LinkedAccount[];
   rewards: VendorReward[];
   activities: Activity[];
   checkEmail: (email: string) => Promise<{ exists: boolean }>;
   login: (email: string, otp: string) => Promise<void>;
   signup: (userData: UserProfile & { mobile: string }, otp: string) => Promise<void>;
-  logout: () => void;
-  linkAccount: (account: Omit<LinkedAccount, 'id' | 'balance' | 'isPrimary'>) => void;
-  removeAccount: (id: string) => void;
-  setPrimaryAccount: (id: string) => void;
-  addActivity: (activity: Omit<Activity, 'id'>) => void;
+  logout: () => Promise<void>;
+  linkAccount: (account: Omit<LinkedAccount, 'id' | 'balance' | 'isPrimary'>) => Promise<void>;
+  removeAccount: (id: string) => Promise<void>;
+  setPrimaryAccount: (id: string) => Promise<void>;
+  addActivity: (activity: Omit<Activity, 'id'>) => Promise<void>;
 }
 
 const CustomerProfileContext = createContext<CustomerProfileContextType | undefined>(undefined);
 
-const INITIAL_STATE = {
+const INITIAL_STATE: {
+  user: UserProfile;
+  wallet: LinkedAccount[];
+  rewards: VendorReward[];
+  activities: Activity[];
+} = {
   user: {
     name: 'Alex Sterling',
     email: 'alex.sterling@example.com',
@@ -75,65 +86,80 @@ const INITIAL_STATE = {
   ]
 };
 
-/**
- * Migration helper to ensure legacy activity data is upgraded to the new itemized format.
- */
-const migrateActivities = (loaded: Activity[]): Activity[] => {
-  return loaded.map(act => {
-    // Demo migration: Ensure act_1 always has its items for the showcase
-    if (act.id === 'act_1' && (!act.items || act.items.length === 0)) {
-      const demoAct = INITIAL_STATE.activities.find(a => a.id === 'act_1');
-      return { 
-        ...act, 
-        category: 'Food & Drink',
-        items: demoAct?.items 
-      };
-    }
-    return act;
-  });
+const INITIAL_PROFILE_DATA = {
+  wallet: INITIAL_STATE.wallet,
+  activities: INITIAL_STATE.activities,
+  rewards: INITIAL_STATE.rewards
 };
 
 export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('customer_profile');
+    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_PROFILE);
     return saved ? JSON.parse(saved) : null;
   });
   
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem('customer_authenticated') === 'true';
+    return localStorage.getItem(STORAGE_KEYS.CUSTOMER_AUTH) === 'true';
   });
   
   const [isLoadingAuth, setIsLoadingAuth] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading] = useState(false); // No longer blocks UI
   
   const [wallet, setWallet] = useState<LinkedAccount[]>(() => {
-    const saved = localStorage.getItem('customer_wallet');
+    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_WALLET);
     return saved ? JSON.parse(saved) : INITIAL_STATE.wallet;
   });
   
-  const [rewards] = useState<VendorReward[]>(INITIAL_STATE.rewards);
-  
-  const [activities, setActivities] = useState<Activity[]>(() => {
-    const saved = localStorage.getItem('customer_activities');
-    const loaded: Activity[] = saved ? JSON.parse(saved) : INITIAL_STATE.activities;
-    return migrateActivities(loaded);
+  const [rewards, setRewards] = useState<VendorReward[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_REWARDS);
+    return saved ? JSON.parse(saved) : INITIAL_STATE.rewards;
   });
 
-  useEffect(() => {
-    localStorage.setItem('customer_wallet', JSON.stringify(wallet));
-  }, [wallet]);
+  const [activities, setActivities] = useState<Activity[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMER_ACTIVITIES);
+    return saved ? JSON.parse(saved) : INITIAL_STATE.activities;
+  });
 
+  // Initial Sync (Revalidation)
   useEffect(() => {
-    localStorage.setItem('customer_activities', JSON.stringify(activities));
-  }, [activities]);
+    const revalidate = async () => {
+      const profile = await profileService.fetchProfile();
+      if (profile.user) setUser(profile.user);
+      setIsAuthenticated(profile.isAuthenticated);
 
+      const savedWallet = await profileService.fetchWallet();
+      if (savedWallet) setWallet(savedWallet);
+
+      const savedRewards = await profileService.fetchRewards();
+      if (savedRewards) setRewards(savedRewards);
+
+      const savedActivities = await profileService.fetchActivities();
+      if (savedActivities) setActivities(savedActivities);
+    };
+    revalidate();
+  }, []);
+
+  // Real-time synchronization
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('customer_profile', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('customer_profile');
-    }
-    localStorage.setItem('customer_authenticated', isAuthenticated.toString());
-  }, [user, isAuthenticated]);
+    const unsub = realtimeService.subscribe('PROFILE_UPDATED', async (event: RealtimeEvent) => {
+      if (event.payload?.source !== 'profile') {
+        const profile = await profileService.fetchProfile();
+        setUser(profile.user);
+        setIsAuthenticated(profile.isAuthenticated);
+
+        const savedWallet = await profileService.fetchWallet();
+        if (savedWallet) setWallet(savedWallet);
+
+        const savedRewards = await profileService.fetchRewards();
+        if (savedRewards) setRewards(savedRewards);
+
+        const savedActivities = await profileService.fetchActivities();
+        if (savedActivities) setActivities(savedActivities);
+      }
+    });
+    return unsub;
+  }, []);
 
   const checkEmail = async (email: string) => {
     setIsLoadingAuth(true);
@@ -148,55 +174,120 @@ export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> = 
     setUser(INITIAL_STATE.user);
     setIsAuthenticated(true);
     setIsLoadingAuth(false);
+    await profileService.saveProfile(INITIAL_STATE.user, true);
   };
 
   const signup = async (userData: UserProfile & { mobile: string }, _otp: string) => {
     setIsLoadingAuth(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
-    setUser({ name: userData.name, email: userData.email, avatar: userData.avatar });
+    const newUser = { name: userData.name, email: userData.email, avatar: userData.avatar };
+    setUser(newUser);
     setIsAuthenticated(true);
     setIsLoadingAuth(false);
+    await profileService.saveProfile(newUser, true);
   };
 
-  const logout = () => {
+  const logout = async () => {
     setUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem('customer_authenticated');
-    localStorage.removeItem('customer_profile');
+    await profileService.saveProfile(null, false);
   };
 
-  const linkAccount = (accountData: Omit<LinkedAccount, 'id' | 'balance' | 'isPrimary'>) => {
-    const newAccount: LinkedAccount = {
-      ...accountData,
-      id: `acc_${Date.now()}`,
-      balance: 0,
-      isPrimary: wallet.length === 0,
-    };
-    setWallet(prev => [...prev, newAccount]);
+  /**
+   * CENTRALIZED PERSISTENCE HELPER
+   * Prevents race conditions and ensures atomic updates across components.
+   */
+  const performProfileUpdate = async (updater: (current: typeof INITIAL_PROFILE_DATA) => typeof INITIAL_PROFILE_DATA) => {
+    const prevWallet = wallet;
+    const prevActivities = activities;
+    const prevRewards = rewards;
+
+    // 1. Optimistic Update
+    const optimistic = updater({ wallet, activities, rewards });
+    setWallet(optimistic.wallet);
+    setActivities(optimistic.activities);
+    setRewards(optimistic.rewards);
+    setIsSaving(true);
+
+    try {
+      // 2. Atomic Patch
+      const next = await profileService.patchProfile(current => {
+        // Hydration safety: Merge current storage data with INITIAL_PROFILE_DATA 
+        // to handle schema evolution or empty storage.
+        const safeCurrent = {
+          wallet: current.wallet.length > 0 ? current.wallet : INITIAL_PROFILE_DATA.wallet,
+          activities: current.activities.length > 0 ? current.activities.map(act => {
+            // DEEP HYDRATION: Ensure demo activity has its items
+            if (act.id === 'act_1' && (!act.items || act.items.length === 0)) {
+              return { ...act, items: INITIAL_PROFILE_DATA.activities.find(a => a.id === 'act_1')?.items };
+            }
+            return act;
+          }) : INITIAL_PROFILE_DATA.activities,
+          rewards: current.rewards.length > 0 ? current.rewards : INITIAL_PROFILE_DATA.rewards,
+        };
+
+        return updater(safeCurrent);
+      }, 'profile');
+
+      // 3. Final sync
+      setWallet(next.wallet);
+      setActivities(next.activities);
+      setRewards(next.rewards);
+    } catch (err) {
+      console.error('Profile update failed, rolling back:', err);
+      setWallet(prevWallet);
+      setActivities(prevActivities);
+      setRewards(prevRewards);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const removeAccount = (id: string) => {
-    setWallet(prev => prev.filter(acc => acc.id !== id));
+  const linkAccount = async (accountData: Omit<LinkedAccount, 'id' | 'balance' | 'isPrimary'>) => {
+    await performProfileUpdate(cur => {
+      const newAccount: LinkedAccount = {
+        ...accountData,
+        id: generateId('acc'),
+        balance: 0,
+        isPrimary: cur.wallet.length === 0,
+      };
+      return { ...cur, wallet: [...cur.wallet, newAccount] };
+    });
   };
 
-  const setPrimaryAccount = (id: string) => {
-    setWallet(prev => prev.map(acc => ({
-      ...acc,
-      isPrimary: acc.id === id
-    })));
+  const removeAccount = async (id: string) => {
+    await performProfileUpdate(cur => {
+      const nextWallet = cur.wallet.filter((acc: LinkedAccount) => acc.id !== id);
+      if (cur.wallet.find(acc => acc.id === id)?.isPrimary && nextWallet.length > 0) {
+        nextWallet[0].isPrimary = true;
+      }
+      return { ...cur, wallet: nextWallet };
+    });
+  };
+
+  const setPrimaryAccount = async (id: string) => {
+    await performProfileUpdate(cur => ({
+      ...cur,
+      wallet: cur.wallet.map((acc: LinkedAccount) => ({
+        ...acc,
+        isPrimary: acc.id === id
+      }))
+    }));
   };
   
-  const addActivity = (activityData: Omit<Activity, 'id'>) => {
-    const newActivity: Activity = {
-      ...activityData,
-      id: `act_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    };
-    setActivities(prev => [newActivity, ...prev]);
+  const addActivity = async (activityData: Omit<Activity, 'id'>) => {
+    await performProfileUpdate(cur => {
+      const newActivity: Activity = {
+        ...activityData,
+        id: generateId('act'),
+      };
+      return { ...cur, activities: [newActivity, ...cur.activities] };
+    });
   };
 
   return (
     <CustomerProfileContext.Provider value={{ 
-      user, isAuthenticated, isLoadingAuth,
+      user, isAuthenticated, isLoadingAuth, isSaving, isLoading,
       wallet, rewards, activities, 
       checkEmail, login, signup, logout,
       linkAccount, removeAccount, setPrimaryAccount,
@@ -207,7 +298,6 @@ export const CustomerProfileProvider: React.FC<{ children: React.ReactNode }> = 
   );
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useCustomerProfile = () => {
   const context = useContext(CustomerProfileContext);
   if (!context) throw new Error('useCustomerProfile must be used within CustomerProfileProvider');

@@ -68,40 +68,45 @@ const App: React.FC = () => {
 
   // URL Hardening: Redirect static #/check/1 to unique #/session/SESS_abc
   useEffect(() => {
-    if (route.view === 'customer' && route.type === 'check') {
-      const checkIdOrSession = route.targetId;
-      if (!checkIdOrSession || checkIdOrSession.startsWith('SESS_')) return;
+    const handleCheckRouting = async () => {
+      if (route.view === 'customer' && route.type === 'check') {
+        const checkIdOrSession = route.targetId;
+        if (!checkIdOrSession || checkIdOrSession.startsWith('SESS_')) return;
 
-      // Logic to resolve session before rendering child
-      const check = merchant.checks.find(c => c.id === checkIdOrSession);
-      if (!check) return;
+        // Logic to resolve session before rendering child
+        const check = merchant.checks.find(c => c.id === checkIdOrSession);
+        if (!check) return;
 
-      const cachedSession = localStorage.getItem(`last_session_check_${checkIdOrSession}`);
-      const merchantSession = check.sessionId;
-      
-      let finalSession = merchantSession;
+        const cachedSession = localStorage.getItem(`last_session_check_${checkIdOrSession}`);
+        const merchantSession = check.sessionId;
+        
+        let finalSession = merchantSession;
 
-      // ACTIVE SHIELD: Protect existing orders from strangers
-      if (merchantSession && cachedSession !== merchantSession && check.status === 'active') {
-        window.location.hash = `#/occupied/${checkIdOrSession}`;
-        return;
+        // ACTIVE SHIELD: Protect existing orders from strangers scanning the Table QR
+        // If the table is active and the user doesn't have the current session key, send to lobby
+        if (merchantSession && cachedSession !== merchantSession && check.status === 'active') {
+          window.location.hash = `#/occupied/${checkIdOrSession}`;
+          return;
+        }
+
+        // START NEW SESSION IF:
+        // 1. Check has no session at all
+        // 2. OR User is a "New Initiator" on an OPEN/EMPTY check (safe to overwrite)
+        if (!merchantSession || (cachedSession !== merchantSession)) {
+          finalSession = await startCheckSession(checkIdOrSession);
+        }
+
+        if (finalSession) {
+          setIsRedirecting(true);
+          setSessionId(finalSession);
+          setCheckId(checkIdOrSession);
+          localStorage.setItem(`last_session_check_${checkIdOrSession}`, finalSession);
+          window.location.hash = `#/session/${finalSession}`;
+        }
       }
+    };
 
-      // START NEW SESSION IF:
-      // 1. Check has no session at all
-      // 2. OR User is a "New Initiator" on an OPEN/EMPTY check (safe to overwrite)
-      if (!merchantSession || (cachedSession !== merchantSession)) {
-        finalSession = startCheckSession(checkIdOrSession);
-      }
-
-      if (finalSession) {
-        setIsRedirecting(true);
-        setSessionId(finalSession);
-        setCheckId(checkIdOrSession);
-        localStorage.setItem(`last_session_check_${checkIdOrSession}`, finalSession);
-        window.location.hash = `#/session/${finalSession}`;
-      }
-    }
+    handleCheckRouting();
   }, [route, merchant.checks, setSessionId, setCheckId, startCheckSession]);
 
   const navigate = (hash: string) => {
@@ -143,26 +148,22 @@ const App: React.FC = () => {
     if (isRedirecting) return <LoadingScreen />;
     
     return (
-      <CustomerProfileProvider>
-        <Suspense fallback={<LoadingScreen />}>
-          <CustomerApp
-            type={route.type}
-            targetId={route.targetId!}
-            onExit={() => navigate('')}
-          />
-        </Suspense>
-      </CustomerProfileProvider>
+      <Suspense fallback={<LoadingScreen />}>
+        <CustomerApp
+          type={route.type}
+          targetId={route.targetId!}
+          onExit={() => navigate('')}
+        />
+      </Suspense>
     );
   }
 
   // ---- Customer Profile ----
   if (route.view === 'profile') {
     return (
-      <CustomerProfileProvider>
-        <Suspense fallback={<LoadingScreen />}>
-          <CustomerProfileApp onExit={() => navigate('')} />
-        </Suspense>
-      </CustomerProfileProvider>
+      <Suspense fallback={<LoadingScreen />}>
+        <CustomerProfileApp onExit={() => navigate('')} />
+      </Suspense>
     );
   }
 

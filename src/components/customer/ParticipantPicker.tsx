@@ -15,14 +15,14 @@ interface Props {
 
 export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) => {
   const { state: merchant } = useMerchant();
-  const { splitSession, participantId, updateParticipant, joinSplitSession } = useCustomer();
+  const { splitSession, participantId, sessionId, updateParticipant, joinSplitSession } = useCustomer();
 
   // Join on mount if not already
   React.useEffect(() => {
-    if (!splitSession) {
-      joinSplitSession(checkId);
+    if (!splitSession && sessionId) {
+      joinSplitSession(sessionId);
     }
-  }, [checkId, splitSession, joinSplitSession]);
+  }, [sessionId, splitSession, joinSplitSession]);
 
   const { check } = useResolvedCheck(checkId);
   const me = splitSession?.participants.find(p => p.id === participantId);

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Invoice, InvoiceItem, Installment } from '../../types/merchant';
 import { QRCodeSVG } from 'qrcode.react';
+import { formatCurrency } from '../../utils/formatters';
 
 interface InvoicePDFContentProps {
   invoice: Invoice;
@@ -56,8 +57,8 @@ export const InvoicePDFContent: React.FC<InvoicePDFContentProps> = ({ invoice, m
             <tr key={item.id} style={{ borderBottom: '1px solid #f9f9f9' }}>
               <td style={{ padding: '16px 0', fontWeight: 600 }}>{item.name || 'Custom Service'}</td>
               <td style={{ textAlign: 'center', padding: '16px 0' }}>{item.quantity}</td>
-              <td style={{ textAlign: 'right', padding: '16px 0' }}>₦{item.price.toLocaleString()}</td>
-              <td style={{ textAlign: 'right', padding: '16px 0', fontWeight: 700 }}>₦{(item.price * item.quantity).toLocaleString()}</td>
+              <td style={{ textAlign: 'right', padding: '16px 0' }}>{formatCurrency(item.price)}</td>
+              <td style={{ textAlign: 'right', padding: '16px 0', fontWeight: 700 }}>{formatCurrency(item.price * item.quantity)}</td>
             </tr>
           ))}
         </tbody>
@@ -85,7 +86,7 @@ export const InvoicePDFContent: React.FC<InvoicePDFContentProps> = ({ invoice, m
                   <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
                     <td style={{ padding: '8px 0', fontWeight: 600 }}>Upfront Deposit</td>
                     <td style={{ padding: '8px 0', opacity: 0.5 }}>Paid Now</td>
-                    <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>₦{(invoice.paymentPlan?.depositAmount || 0).toLocaleString()}</td>
+                    <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(invoice.paymentPlan?.depositAmount || 0)}</td>
                   </tr>
                   {(invoice.paymentPlan?.installments || []).map((inst: Installment) => (
                     <tr key={inst.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
@@ -93,7 +94,7 @@ export const InvoicePDFContent: React.FC<InvoicePDFContentProps> = ({ invoice, m
                       <td style={{ padding: '8px 0', opacity: 0.5 }}>
                         {inst.dueDate === 'on_delivery' ? 'Due on Delivery' : new Date(inst.dueDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
                       </td>
-                      <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>₦{(inst.amount || 0).toLocaleString()}</td>
+                      <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(inst.amount || 0)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -105,11 +106,11 @@ export const InvoicePDFContent: React.FC<InvoicePDFContentProps> = ({ invoice, m
         <div style={{ minWidth: '240px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', opacity: 0.6 }}>
             <span>Subtotal</span>
-            <span>₦{invoice.items.reduce((sum: number, i: InvoiceItem) => sum + (i.price * i.quantity), 0).toLocaleString()}</span>
+            <span>{formatCurrency(invoice.items.reduce((sum: number, i: InvoiceItem) => sum + (i.price * i.quantity), 0))}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 0', borderTop: '2px solid #000', fontSize: '20px', fontWeight: 800 }}>
             <span>Total Amount</span>
-            <span>₦{invoice.total.toLocaleString()}</span>
+            <span>{formatCurrency(invoice.total)}</span>
           </div>
         </div>
       </div>

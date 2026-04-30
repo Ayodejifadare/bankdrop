@@ -15,6 +15,7 @@ import {
   RefreshCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatCurrency, getCurrencySymbol } from '../../utils/formatters';
 import styles from './MerchantUI.module.css';
 
 interface MenuManagerProps {
@@ -100,7 +101,7 @@ const MenuForm: React.FC<MenuFormProps> = ({ item, onSave, onCancel, categories 
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-md)' }}>
             <Input
-              label="Price (₦)"
+              label={`Price (${getCurrencySymbol()})`}
               type="number"
               value={formData.price}
               onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
@@ -311,7 +312,7 @@ export const MenuManager: React.FC<MenuManagerProps> = ({ initialAdding, onAddin
                         )}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {item.category} • ₦{item.price.toLocaleString()}
+                        {item.category} • {formatCurrency(item.price)}
                         {item.type === 'subscription' && ` / ${item.billingCycle}`}
                       </div>
                     </div>

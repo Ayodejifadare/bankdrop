@@ -20,13 +20,14 @@ interface Props {
 
 export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
   const { state: merchant } = useMerchant();
-  const { setCheckId, setSessionId, splitSession, joinSplitSession, clearSession, removeSessionReward, participantId } = useCustomer();
+  const { setCheckId, setSessionId, splitSession, joinSplitSession, removeSessionReward, participantId } = useCustomer();
   const { isAuthenticated, user } = useCustomerProfile();
   const [screen, setScreen] = useState<Screen>('cart');
   const [payAmount, setPayAmount] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
 
   const { check, archivedOrder, type: resolvedType } = useResolvedCheck(targetId);
+
 
   // Logout / Session Protection
   useEffect(() => {
@@ -40,6 +41,13 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
 
   // Robust Screen Logic
   useEffect(() => {
+    // SYNC UPDATE: If the total changes, update payAmount ONLY if we are still on selection screens
+    if (check && (screen === 'cart' || screen === 'pick' || screen === 'split')) {
+      setPayAmount(check.total);
+    }
+
+    if (isInitialized) return;
+
     if (type === 'quickpay') {
       setPayAmount(0);
       setScreen('pay');
@@ -66,10 +74,11 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
       const checkIdOrSession = targetId;
 
       if (resolvedType === 'archived' && archivedOrder) {
+        // For older guests returning to a receipt
         setSessionId(checkIdOrSession);
         setCheckId(archivedOrder.checkId);
         setPayAmount(archivedOrder.total);
-        setScreen('pay');
+        setScreen('pay'); // PayTransfer handles the receipt view for archived
         setIsInitialized(true);
         return;
       }
@@ -92,7 +101,7 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
         }
 
         const savedSplit = localStorage.getItem(`check_split_${activeSession}`);
-        if (savedSplit && !isInitialized) {
+        if (savedSplit) {
           joinSplitSession(activeSession);
           setScreen('pick');
         }
@@ -100,9 +109,7 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
 
       setIsInitialized(true);
     }
-  }, [type, targetId, merchant.invoices, merchant.checks, setCheckId, joinSplitSession, clearSession, isInitialized, resolvedType, check, archivedOrder]);
-
-  if (!isInitialized) return null;
+  }, [type, targetId, merchant.invoices, merchant.checks, setCheckId, setSessionId, joinSplitSession, isInitialized, resolvedType, check, archivedOrder, screen]);
 
   if (type === 'occupied') {
     return <TableOccupied checkId={targetId} onBack={onExit} />;
@@ -112,7 +119,7 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
     case 'cart':
       return (
         <CartView
-          checkId={targetId}
+          checkId={check?.id || targetId}
           onPay={(amount) => { setPayAmount(amount); setScreen('pay'); }}
           onSplit={() => setScreen('split')}
           onBack={onExit}
@@ -122,7 +129,7 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
     case 'split':
       return (
         <SplitSession
-          checkId={targetId}
+          checkId={check?.id || targetId}
           onPayShare={(amount) => { setPayAmount(amount); setScreen('pay'); }}
           onPickItems={() => setScreen('pick')}
           onBack={() => setScreen('cart')}
@@ -132,7 +139,7 @@ export const CustomerApp: React.FC<Props> = ({ type, targetId, onExit }) => {
     case 'pick':
       return (
         <ParticipantPicker
-          checkId={targetId}
+          checkId={check?.id || targetId}
           onPay={(amount) => { setPayAmount(amount); setScreen('pay'); }}
           onBack={() => setScreen('split')}
         />

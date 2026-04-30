@@ -1,9 +1,11 @@
 import React from 'react';
 import { useMerchant } from '../../context/MerchantContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Bell, Landmark, CreditCard, Banknote, CheckCircle2, XCircle } from 'lucide-react';
+import { X, Bell, Landmark, CreditCard, Banknote, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { formatCurrency, getCurrencySymbol } from '../../utils/formatters';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import type { PendingVerification } from '../../types/merchant';
 import styles from './MerchantUI.module.css';
 
 interface NotificationCenterProps {
@@ -12,12 +14,14 @@ interface NotificationCenterProps {
 }
 
 interface NotificationItemProps {
-  item: any;
+  item: PendingVerification;
+  isSaving: boolean;
   onResolve: (id: string, confirmed: boolean, amount?: number) => void;
 }
 
-const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve }) => {
+const NotificationItem: React.FC<NotificationItemProps> = ({ item, isSaving, onResolve }) => {
   const [entryAmount, setEntryAmount] = React.useState<number | ''>('');
+  const [isResolving, setIsResolving] = React.useState(false);
   const isQuickPayOpen = item.type === 'quickpay' && item.amount === 0;
 
   const getIcon = (method: string) => {
@@ -34,15 +38,22 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve }) 
     return item.type === 'check' ? `Check #${item.targetId}` : `Invoice ${item.targetId}`;
   };
 
-  const handleConfirm = () => {
-    if (isQuickPayOpen) {
-      if (typeof entryAmount === 'number' && entryAmount > 0) {
-        onResolve(item.id, true, entryAmount);
+  const handleAction = async (confirmed: boolean) => {
+    setIsResolving(true);
+    try {
+      if (confirmed && isQuickPayOpen) {
+        if (typeof entryAmount === 'number' && entryAmount > 0) {
+          await onResolve(item.id, true, entryAmount);
+        }
+      } else {
+        await onResolve(item.id, confirmed);
       }
-    } else {
-      onResolve(item.id, true);
+    } finally {
+      setIsResolving(false);
     }
   };
+
+  const isLoading = isSaving && isResolving;
 
   return (
     <Card style={{ padding: '16px', borderLeft: '4px solid var(--brand-accent)' }}>
@@ -61,7 +72,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve }) 
           </div>
           <div>
             <div style={{ fontWeight: 700, fontSize: '1rem' }}>
-              {isQuickPayOpen ? 'Open Amount' : `₦${item.amount.toLocaleString()}`}
+              {isQuickPayOpen ? 'Open Amount' : formatCurrency(item.amount)}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               {getLabel()}
@@ -79,10 +90,11 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve }) 
             ENTER RECEIVED AMOUNT
           </label>
           <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-primary)' }}>₦</span>
+            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-primary)' }}>{getCurrencySymbol()}</span>
             <input 
               type="number"
               placeholder="0.00"
+              disabled={isLoading}
               value={entryAmount}
               onChange={(e) => setEntryAmount(e.target.value === '' ? '' : Number(e.target.value))}
               style={{
@@ -94,7 +106,8 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve }) 
                 color: 'var(--text-primary)',
                 fontWeight: 600,
                 fontSize: '1.25rem',
-                outline: 'none'
+                outline: 'none',
+                opacity: isLoading ? 0.5 : 1
               }}
             />
           </div>
@@ -106,8 +119,9 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve }) 
           fullWidth 
           size="small" 
           variant="outline"
+          disabled={isLoading}
           style={{ borderColor: '#ef4444', color: '#ef4444', padding: '8px' }}
-          onClick={() => onResolve(item.id, false)}
+          onClick={() => handleAction(false)}
         >
           <XCircle size={14} style={{ marginRight: '6px' }} /> Decline
         </Button>
@@ -115,16 +129,20 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve }) 
           fullWidth 
           size="small" 
           variant="primary"
-          disabled={isQuickPayOpen && (!entryAmount || entryAmount <= 0)}
+          disabled={isLoading || (isQuickPayOpen && (!entryAmount || entryAmount <= 0))}
           style={{ 
-            backgroundColor: isQuickPayOpen && (!entryAmount || entryAmount <= 0) ? 'var(--bg-tertiary)' : '#4ade80', 
+            backgroundColor: (isLoading || (isQuickPayOpen && (!entryAmount || entryAmount <= 0))) ? 'var(--bg-tertiary)' : '#4ade80', 
             color: '#000', 
             border: 'none', 
             padding: '8px' 
           }}
-          onClick={handleConfirm}
+          onClick={() => handleAction(true)}
         >
-          <CheckCircle2 size={14} style={{ marginRight: '6px' }} /> Confirm
+          {isLoading ? (
+            <Loader2 size={14} className={styles.spin} />
+          ) : (
+            <><CheckCircle2 size={14} style={{ marginRight: '6px' }} /> Confirm</>
+          )}
         </Button>
       </div>
     </Card>
@@ -132,7 +150,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, onResolve }) 
 };
 
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose }) => {
-  const { state, resolveVerification } = useMerchant();
+  const { state, resolveVerification, isSaving } = useMerchant();
   const pending = state.pendingVerifications?.filter(v => v.status === 'pending') || [];
 
   return (
@@ -190,6 +208,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
                     <NotificationItem 
                       key={item.id} 
                       item={item} 
+                      isSaving={isSaving}
                       onResolve={resolveVerification} 
                     />
                   ))}

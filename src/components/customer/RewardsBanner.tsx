@@ -5,6 +5,7 @@ import { useCustomer } from '../../context/CustomerContext';
 import { Button } from '../ui/Button';
 import { Gift, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { formatCurrency } from '../../utils/formatters';
 import styles from './CustomerUI.module.css';
 
 interface Props {
@@ -59,7 +60,7 @@ export const RewardsBanner: React.FC<Props> = ({ total }) => {
             <Sparkles size={20} color="var(--brand-accent)" />
             <div className={styles.rewardBannerContent}>
               <div className={styles.rewardBannerText}>
-                <strong>₦{currentDiscount.toLocaleString()} Reward Applied!</strong>
+                <strong>{formatCurrency(currentDiscount)} Reward Applied!</strong>
               </div>
               <div className={styles.rewardBannerSubtext}>
                 Applied by {appliedBy}
@@ -78,7 +79,7 @@ export const RewardsBanner: React.FC<Props> = ({ total }) => {
             <Gift size={20} color="var(--brand-accent)" />
             <div className={styles.rewardBannerContent}>
               <div className={styles.rewardBannerText}>
-                <strong>₦{rewardValue.toLocaleString()} Balance Available</strong>
+                <strong>{formatCurrency(rewardValue)} Balance Available</strong>
               </div>
               <div className={styles.rewardBannerSubtext}>
                 Apply to this check to save for everyone
