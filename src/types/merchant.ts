@@ -17,7 +17,9 @@ export interface BankAccount {
 }
 
 export interface OrderItem {
+  id: string;
   menuItemId: string;
+  name: string;
   quantity: number;
   priceAtOrder: number;
 }

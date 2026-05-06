@@ -75,6 +75,7 @@ export const CheckManager: React.FC<CheckManagerProps> = ({ onOpenSettings }) =>
         const menuItem = state.menu.find(m => m.id === menuItemId);
         return {
           menuItemId,
+          name: menuItem?.name || 'Item',
           quantity,
           priceAtOrder: menuItem?.price || 0
         };

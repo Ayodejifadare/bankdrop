@@ -13,6 +13,8 @@ import {
   Loader2,
   Download
 } from 'lucide-react';
+import { flattenOrders, getSelectedItems } from '../../utils/orderUtils';
+
 import { motion } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -29,7 +31,8 @@ interface Props {
 
 export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAmount, onBack, onDone }) => {
   const { state: merchant, requestVerification } = useMerchant();
-  const { sessionId, checkId: contextCheckId, markPaid } = useCustomer();
+  const { sessionId, checkId: contextCheckId, splitSession, participantId, markPaid } = useCustomer();
+
   const receiptRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -67,7 +70,16 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
       const inv = merchant.invoices.find(i => i.id === targetId);
       return inv?.items || [];
     } else if (type === 'check') {
-      // Priority 1: Persistent Archived Session (Receipt)
+      // 1. SPLIT PAYMENT CASE: Filter by selection
+      if (splitSession) {
+        const myParticipant = splitSession.participants.find(p => p.id === participantId);
+        if (myParticipant) {
+          const flat = flattenOrders(splitSession.items);
+          return getSelectedItems(flat, myParticipant.selectedItems || []);
+        }
+      }
+
+      // 2. Priority 1: Persistent Archived Session (Full Receipt)
       if (archivedOrder) {
         return archivedOrder.orders.map(o => {
           const menuItem = merchant.menu.find(m => m.id === o.menuItemId);
@@ -76,12 +88,13 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
             id: o.menuItemId,
             name: menuItem?.name || 'Unknown Item',
             price: snapshotPrice,
-            quantity: o.quantity
+            quantity: o.quantity,
+            total: snapshotPrice * o.quantity
           };
         });
       }
 
-      // Priority 2: Current Active Check
+      // 3. Priority 2: Current Active Check (Full Receipt)
       const chk = merchant.checks.find(c => c.id === targetId || c.sessionId === targetId);
       if (!chk) return [];
       return chk.orders.map(o => {
@@ -91,12 +104,13 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
           id: o.menuItemId,
           name: menuItem?.name || 'Unknown Item',
           price: snapshotPrice,
-          quantity: o.quantity
+          quantity: o.quantity,
+          total: snapshotPrice * o.quantity
         };
       });
     }
     return []; // Quickpay has no line items
-  }, [merchant, type, targetId, archivedOrder]);
+  }, [merchant, type, targetId, archivedOrder, splitSession, participantId]);
 
   // Countdown
   useEffect(() => {
@@ -143,7 +157,8 @@ export const PayTransfer: React.FC<Props> = ({ type, targetId, amount: initialAm
     });
     
     // SYNC: Record the payment activity in the customer profile
-    markPaid(localAmount);
+    markPaid(localAmount, receiptItems);
+
     
     setConfirmed(true);
   };

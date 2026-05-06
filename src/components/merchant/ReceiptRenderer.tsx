@@ -32,11 +32,10 @@ export const ReceiptRenderer: React.FC<ReceiptRendererProps> = ({ order, merchan
         </div>
         <div style={{ borderBottom: '1px dashed #000', marginBottom: '10px' }} />
         {order.orders.map((o, i) => {
-          const menuItem = menu.find(m => m.id === o.menuItemId);
-          const snapshotPrice = o.priceAtOrder || menuItem?.price || 0;
+          const snapshotPrice = o.priceAtOrder || 0;
           return (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-              <span>{o.quantity} {menuItem?.name}</span>
+              <span>{o.quantity} {o.name}</span>
               <span>{formatCurrency(snapshotPrice * o.quantity)}</span>
             </div>
           );

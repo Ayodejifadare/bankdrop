@@ -178,7 +178,7 @@ export const CheckDetail: React.FC<CheckDetailProps> = ({
                       {item?.type === 'subscription' ? <Repeat size={14} /> : item?.type === 'service' ? <Zap size={14} /> : <Package size={14} />}
                     </div>
                     <div className={styles.orderInfo}>
-                      <span className={styles.orderTitle}>{item?.name}</span>
+                      <span className={styles.orderTitle}>{order.name}</span>
                       <span className={styles.orderSubtitle}>
                         {formatCurrency(snapshotPrice)}
                         {item?.type === 'subscription' && ` / ${item.billingCycle}`}
@@ -263,7 +263,7 @@ export const CheckDetail: React.FC<CheckDetailProps> = ({
                             const snapshotPrice = o.priceAtOrder || menuItem?.price || 0;
                             return (
                               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.875rem' }}>
-                                <span>{o.quantity}x {menuItem?.name || 'Item'}</span>
+                                <span>{o.quantity}x {o.name}</span>
                                 <span style={{ opacity: 0.7 }}>{formatCurrency(snapshotPrice * o.quantity)}</span>
                               </div>
                             );

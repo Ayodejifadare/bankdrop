@@ -50,7 +50,11 @@ export const PaymentAlert: React.FC = () => {
 
   const getLabel = () => {
     if (activeItem.type === 'quickpay') return 'Quickpay';
-    return activeItem.type === 'check' ? `Check #${activeItem.targetId}` : `Invoice ${activeItem.targetId}`;
+    if (activeItem.type === 'check') {
+      const check = state.checks.find(c => c.id === activeItem.targetId || c.sessionId === activeItem.targetId);
+      return `Check #${check ? check.id : activeItem.targetId}`;
+    }
+    return `Invoice ${activeItem.targetId}`;
   };
 
   const handleAction = async (confirmed: boolean) => {

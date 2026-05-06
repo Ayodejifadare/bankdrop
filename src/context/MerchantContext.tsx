@@ -85,6 +85,53 @@ const INITIAL_OPS_STATE: MerchantState = {
   }
 };
 
+// --- Helper to apply persistent IDs and names to legacy data ---
+const _backfillLegacyData = (data: MerchantState): MerchantState => {
+  const menu = data.menu || [];
+  const backfilled = { ...data };
+
+  if (backfilled.checks) {
+    backfilled.checks = backfilled.checks.map(c => ({
+      ...c,
+      orders: (c.orders || []).map((o, idx) => ({
+        ...o,
+        id: o.id || `li_${o.menuItemId}_${idx}`,
+        name: o.name || menu.find((m: any) => m.id === o.menuItemId)?.name || 'Unknown Item'
+      }))
+    }));
+  }
+
+  if (backfilled.orderHistory) {
+    backfilled.orderHistory = backfilled.orderHistory.map(h => ({
+      ...h,
+      orders: (h.orders || []).map((o, idx) => ({
+        ...o,
+        id: o.id || `li_${o.menuItemId}_${idx}_hist`,
+        name: o.name || menu.find((m: any) => m.id === o.menuItemId)?.name || 'Unknown Item'
+      }))
+    }));
+  }
+
+  if (backfilled.archivedSessions) {
+    const sessionEntries = Object.entries(backfilled.archivedSessions);
+    backfilled.archivedSessions = Object.fromEntries(
+      sessionEntries.map(([sId, session]) => [
+        sId,
+        {
+          ...session,
+          orders: (session.orders || []).map((o, idx) => ({
+            ...o,
+            id: o.id || `li_${o.menuItemId}_${idx}_arch`,
+            name: o.name || menu.find((m: any) => m.id === o.menuItemId)?.name || 'Unknown Item'
+          }))
+        }
+      ])
+    );
+  }
+
+  return backfilled;
+};
+
 const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { menu, rewards } = useMerchantMenu();
   const [state, setState] = useState<MerchantState>(() => {
@@ -92,15 +139,21 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const loaded = saved ? JSON.parse(saved) : {};
     
     // HYDRATION SAFETY NET: Deep merge to prevent missing arrays from crashing legacy merchants
-    return { 
+    const hydrated = { 
       ...INITIAL_OPS_STATE, 
       ...loaded,
       preferences: { ...INITIAL_OPS_STATE.preferences, ...(loaded.preferences || {}) },
-      contactInfo: { ...(INITIAL_OPS_STATE.contactInfo || {}), ...(loaded.contactInfo || {}) },
-      menu: [], 
-      rewards: [] 
+      contactInfo: { ...(INITIAL_OPS_STATE.contactInfo || {}), ...(loaded.contactInfo || {}) }
     };
+
+    return _backfillLegacyData(hydrated);
   });
+
+  // Initial Backfill sync with Menu
+  useEffect(() => {
+    setState(current => _backfillLegacyData(current));
+  }, [menu]);
+
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading] = useState(false);
 
@@ -109,12 +162,13 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const revalidate = async () => {
       const saved = await merchantService.fetchState();
       if (saved) {
-        setState(prev => ({
-          ...prev,
-          ...saved,
-          menu: [],
-          rewards: []
-        }));
+        setState(prev => {
+          const backfilled = _backfillLegacyData(saved);
+          return {
+            ...prev,
+            ...backfilled
+          };
+        });
       }
     };
     revalidate();
@@ -128,12 +182,13 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (event.payload?.source !== 'ops') {
         const saved = await merchantService.fetchState();
         if (saved) {
-          setState(prev => ({
-            ...prev,
-            ...saved,
-            menu: [], // Keep managed by MenuContext
-            rewards: []
-          }));
+          setState(prev => {
+            const backfilled = _backfillLegacyData(saved);
+            return {
+              ...prev,
+              ...backfilled
+            };
+          });
         }
       }
     });
@@ -363,11 +418,19 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const idx = newOrders.findIndex(o => o.menuItemId === item.menuItemId);
           
           if (idx >= 0) {
+            // Merge: preserve existing line item ID and name, just increase quantity
             newOrders[idx] = { ...newOrders[idx], quantity: newOrders[idx].quantity + item.quantity };
             totalDelta += newOrders[idx].priceAtOrder * item.quantity;
           } else {
             const price = item.priceAtOrder || menuPrice;
-            newOrders.push({ ...item, priceAtOrder: price });
+            const name = item.name || menuItem?.name || 'Unknown Item';
+            // NEW: Generate persistent ID and bake-in the Name for every new line item
+            newOrders.push({ 
+              ...item, 
+              id: item.id || generateId('li'), 
+              name,
+              priceAtOrder: price 
+            });
             totalDelta += price * item.quantity;
           }
         });
@@ -394,13 +457,23 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
             newOrders.splice(idx, 1);
             delta = -(item.priceAtOrder * item.quantity);
           } else {
+            // Preserve persistent ID during quantity changes
             newOrders[idx] = { ...item, quantity: newQty };
             delta = item.priceAtOrder * quantityDelta;
           }
         } else {
           const activeMenu = current.menu || [];
-          const menuPrice = activeMenu.find(m => m.id === menuItemId)?.price || 0;
-          newOrders.push({ menuItemId, quantity: quantityDelta, priceAtOrder: menuPrice });
+          const menuItem = activeMenu.find(m => m.id === menuItemId);
+          const menuPrice = menuItem?.price || 0;
+          const menuName = menuItem?.name || 'Unknown Item';
+          // NEW: Generate persistent ID and bake-in Name for new line items added via quantity update
+          newOrders.push({ 
+            id: generateId('li'), 
+            menuItemId, 
+            name: menuName,
+            quantity: quantityDelta, 
+            priceAtOrder: menuPrice 
+          });
           delta = menuPrice * quantityDelta;
         }
         return { ...c, status: newOrders.length > 0 ? 'active' : 'open', orders: newOrders, total: Math.max(0, c.total + delta) };

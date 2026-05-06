@@ -10,15 +10,21 @@ export interface AppRoute {
 export type SplitMethod = 'items' | 'equal' | 'percentage' | 'custom' | 'full';
 
 export interface SessionItem {
+  id: string;
   name: string;
   quantity: number;
   price: number;
 }
 
+export interface SelectedItem {
+  lineItemId: string;
+  count: number;
+}
+
 export interface Participant {
   id: string;
   name: string;
-  selectedItemIndices: number[];
+  selectedItems: SelectedItem[];
   share: number;
   paid: boolean;
 }

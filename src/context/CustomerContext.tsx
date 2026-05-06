@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { SplitSession, Participant, SplitMethod, SessionItem } from '../types/checkout';
+import type { SplitSession, Participant, SplitMethod, SessionItem, SelectedItem } from '../types/checkout';
 import { customerService } from '../api/dataService';
 import { generateSimpleId } from '../utils/idUtils';
 import { useCustomerProfile } from './CustomerProfileContext';
 import { STORAGE_KEYS } from '../utils/constants';
+import { flattenOrders, getSelectedItems, migrateLegacySelections } from '../utils/orderUtils';
+
 
 interface CustomerContextType {
   checkId: string | null;
@@ -24,7 +26,8 @@ interface CustomerContextType {
   changeSplitMethod: (method: SplitMethod) => Promise<void>;
   applySessionReward: (amount: number, name: string) => Promise<void>;
   removeSessionReward: () => Promise<void>;
-  markPaid: (amount?: number) => Promise<void>;
+  markPaid: (amount?: number, items?: any[]) => Promise<void>;
+
   clearSession: (checkId: string) => Promise<void>;
   syncError: string | null;
 }
@@ -113,7 +116,20 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       // ATOMIC CREATE: Only create if doesn't exist, otherwise return existing
       const session = await customerService.patchSplitSession(sId, current => {
-        if (current && current.id === sId) return current;
+        if (current && current.id === sId) {
+          // LEGACY MIGRATION: If existing session has old selectedItemIndices, migrate them
+          const migratedParticipants = current.participants.map((p: any) => {
+            if (p.selectedItemIndices && !p.selectedItems) {
+              return {
+                ...p,
+                selectedItems: migrateLegacySelections(p.selectedItemIndices, current.items),
+                selectedItemIndices: undefined
+              };
+            }
+            return p;
+          });
+          return { ...current, participants: migratedParticipants };
+        }
         
         return {
           id: sId,
@@ -123,7 +139,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           participants: [{
             id: participantId,
             name: 'Guest 1',
-            selectedItemIndices: [],
+            selectedItems: [],
             share: 0,
             paid: false,
           }],
@@ -153,7 +169,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             participants: [...current.participants, {
               id: participantId,
               name: `Guest ${current.participants.length + 1}`,
-              selectedItemIndices: [],
+              selectedItems: [],
               share: 0,
               paid: false,
             }]
@@ -196,7 +212,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   }, [performSessionUpdate]);
 
-  const markPaid = useCallback(async (amount?: number) => {
+  const markPaid = useCallback(async (amount?: number, items?: any[]) => {
     // 1. Update session status
     await performSessionUpdate(current => ({
       ...current,
@@ -218,15 +234,24 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       // Don't record 0 amount activities unless it's explicitly intended
       if (finalAmount > 0 || amount !== undefined) {
+        // PREPARE ITEMS FOR RECEIPT
+        let receiptItems = items;
+        
+        // If items not provided but we have a split session, try to reconstruct them
+        if (!receiptItems && splitSession && myParticipant) {
+          const flat = flattenOrders(splitSession.items);
+          receiptItems = getSelectedItems(flat, myParticipant.selectedItems || []);
+        }
+
         await addActivity({
           type: 'sent',
           amount: finalAmount,
-          entity: splitSession?.businessName || 'Merchant', // Will be refined in the UI if missing
+          entity: splitSession?.businessName || 'Merchant',
           timestamp: new Date().toISOString(),
           status: 'pending',
           category: 'Food & Drink',
           referenceId: splitSession?.id || checkId || undefined,
-          items: splitSession?.items?.filter((_: SessionItem, idx: number) => myParticipant?.selectedItemIndices.includes(idx))
+          items: receiptItems
         });
       }
     }

@@ -20,6 +20,7 @@ interface NotificationItemProps {
 }
 
 const NotificationItem: React.FC<NotificationItemProps> = ({ item, isSaving, onResolve }) => {
+  const { state } = useMerchant();
   const [entryAmount, setEntryAmount] = React.useState<number | ''>('');
   const [isResolving, setIsResolving] = React.useState(false);
   const isQuickPayOpen = item.type === 'quickpay' && item.amount === 0;
@@ -35,7 +36,11 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ item, isSaving, onR
 
   const getLabel = () => {
     if (item.type === 'quickpay') return 'Quickpay';
-    return item.type === 'check' ? `Check #${item.targetId}` : `Invoice ${item.targetId}`;
+    if (item.type === 'check') {
+      const check = state.checks.find(c => c.id === item.targetId || c.sessionId === item.targetId);
+      return `Check #${check ? check.id : item.targetId}`;
+    }
+    return `Invoice ${item.targetId}`;
   };
 
   const handleAction = async (confirmed: boolean) => {

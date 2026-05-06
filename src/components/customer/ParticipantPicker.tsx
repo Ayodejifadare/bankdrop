@@ -6,6 +6,9 @@ import { ArrowLeft, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import styles from './CustomerUI.module.css';
 import { useResolvedCheck } from '../../hooks/useResolvedCheck';
+import { flattenOrders, reconcileSelections, calculateShare } from '../../utils/orderUtils';
+import type { SelectedItem } from '../../types/checkout';
+
 
 interface Props {
   checkId: string;
@@ -32,58 +35,125 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
   const appliedBy = splitSession?.appliedBy || '';
   const isAppliedByMe = appliedBy === myName;
 
+  // Build flattened items from the LIVE merchant check (source of truth for quantities)
   const orderItems = useMemo(() => {
     if (!check) return [];
-    return check.orders.map((o, idx) => {
+
+    const rawOrders = check.orders.map(o => {
       const menuItem = merchant.menu.find(m => m.id === o.menuItemId);
-      const snapshotPrice = o.priceAtOrder || menuItem?.price || 0;
       return {
-        index: idx,
+        id: o.id || o.menuItemId,
         name: menuItem?.name || 'Unknown',
-        price: snapshotPrice,
-        quantity: o.quantity,
-        total: snapshotPrice * o.quantity,
+        price: o.priceAtOrder || menuItem?.price || 0,
+        quantity: o.quantity
       };
     });
+
+    return flattenOrders(rawOrders);
   }, [check, merchant.menu]);
 
-  const [selectedIndices, setSelectedIndices] = useState<number[]>(me?.selectedItemIndices || []);
+  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>(me?.selectedItems || []);
 
   // Keep local state in sync with context (for multiplayer/external updates)
   React.useEffect(() => {
-    if (me?.selectedItemIndices && JSON.stringify(me.selectedItemIndices) !== JSON.stringify(selectedIndices)) {
-      setSelectedIndices(me.selectedItemIndices);
+    if (me?.selectedItems && JSON.stringify(me.selectedItems) !== JSON.stringify(selectedItems)) {
+      setSelectedItems(me.selectedItems);
     }
-  }, [me?.selectedItemIndices, selectedIndices]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.selectedItems]);
 
-  // Which items are claimed by OTHER participants
+  // RECONCILIATION EFFECT: When merchant modifies the check, reconcile all selections
+  React.useEffect(() => {
+    if (!splitSession || !check || orderItems.length === 0) return;
+
+    const currentItems = check.orders.map(o => ({
+      id: o.id || o.menuItemId,
+      quantity: o.quantity
+    }));
+
+    const reconciled = reconcileSelections(currentItems, splitSession.participants);
+    
+    // Check if MY selections changed
+    const myReconciled = reconciled.get(participantId);
+    if (myReconciled && JSON.stringify(myReconciled) !== JSON.stringify(selectedItems)) {
+      setSelectedItems(myReconciled);
+      
+      // Persist the reconciled selections
+      if (me && splitSession) {
+        const share = calculateShare(orderItems, myReconciled);
+        updateParticipant(splitSession.id, { ...me, selectedItems: myReconciled, share });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [check?.orders]);
+
+  // Which items are claimed by OTHER participants (as counts per lineItemId)
   const claimedByOthers = useMemo(() => {
-    const map = new Map<number, string>();
+    const map = new Map<string, { name: string; count: number }[]>();
     if (!splitSession) return map;
     splitSession.participants.forEach(p => {
       if (p.id !== participantId) {
-        p.selectedItemIndices.forEach(idx => map.set(idx, p.name));
+        (p.selectedItems || []).forEach(sel => {
+          if (sel.count <= 0) return;
+          if (!map.has(sel.lineItemId)) map.set(sel.lineItemId, []);
+          map.get(sel.lineItemId)!.push({ name: p.name, count: sel.count });
+        });
       }
     });
     return map;
   }, [splitSession, participantId]);
 
-  const toggleItem = (index: number) => {
-    const next = selectedIndices.includes(index) 
-      ? selectedIndices.filter(i => i !== index) 
-      : [...selectedIndices, index];
-    
-    // 1. Update local state immediately for snappy UI
-    setSelectedIndices(next);
+  // Build display groups
+  const itemGroups = useMemo(() => {
+    return orderItems.map((item) => {
+      const mySelection = selectedItems.find(s => s.lineItemId === item.lineItemId);
+      const myCount = mySelection?.count || 0;
 
-    // 2. Persist to session (side effect outside of updater)
+      const othersClaims = claimedByOthers.get(item.lineItemId) || [];
+      const othersTotalCount = othersClaims.reduce((sum, c) => sum + c.count, 0);
+
+      const unclaimed = Math.max(0, item.quantity - myCount - othersTotalCount);
+
+      return {
+        lineItemId: item.lineItemId,
+        name: item.name,
+        price: item.price,
+        totalQty: item.quantity,
+        myCount,
+        unclaimed,
+        othersClaims,
+      };
+    });
+  }, [orderItems, selectedItems, claimedByOthers]);
+
+  const toggleItem = (lineItemId: string, delta: number) => {
+    const group = itemGroups.find(g => g.lineItemId === lineItemId);
+    if (!group) return;
+
+    const currentSel = selectedItems.find(s => s.lineItemId === lineItemId);
+    const currentCount = currentSel?.count || 0;
+    const newCount = Math.max(0, Math.min(currentCount + delta, currentCount + group.unclaimed));
+
+    // Don't allow increasing beyond what's available
+    if (delta > 0 && group.unclaimed <= 0) return;
+
+    const next = newCount <= 0
+      ? selectedItems.filter(s => s.lineItemId !== lineItemId)
+      : currentSel
+        ? selectedItems.map(s => s.lineItemId === lineItemId ? { ...s, count: newCount } : s)
+        : [...selectedItems, { lineItemId, count: newCount }];
+
+    // 1. Update local state immediately for snappy UI
+    setSelectedItems(next);
+
+    // 2. Persist to session
     if (me && splitSession) {
-      const share = next.reduce((acc, i) => acc + (orderItems[i]?.total || 0), 0);
-      updateParticipant(splitSession.id, { ...me, selectedItemIndices: next, share });
+      const share = calculateShare(orderItems, next);
+      updateParticipant(splitSession.id, { ...me, selectedItems: next, share });
     }
   };
 
-  const itemShare = selectedIndices.reduce((acc, i) => acc + (orderItems[i]?.total || 0), 0);
+  const itemShare = calculateShare(orderItems, selectedItems);
   const myFinalShare = isAppliedByMe ? Math.max(0, itemShare - discount) : itemShare;
 
   return (
@@ -103,33 +173,59 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
           Tap the items you ordered. {isAppliedByMe ? 'Your reward will be applied to your share.' : 'Rewards are applied per check.'}
         </p>
 
-        {orderItems.map((item) => {
-          const claimedBy = claimedByOthers.get(item.index);
-          const isSelected = selectedIndices.includes(item.index);
-          const isClaimed = !!claimedBy;
-
-          return (
-            <motion.div
-              key={item.index}
-              className={`${styles.pickableItem} ${isSelected ? styles.pickableItemSelected : ''} ${isClaimed ? styles.pickableItemClaimed : ''}`}
-              onClick={() => !isClaimed && toggleItem(item.index)}
-              whileTap={!isClaimed ? { scale: 0.98 } : undefined}
-            >
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1 }}>
-                <div
-                  className={`${styles.checkbox} ${isSelected ? styles.checkboxChecked : ''}`}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {itemGroups.map((group) => (
+            <React.Fragment key={group.lineItemId}>
+              {/* My Selected Units */}
+              {group.myCount > 0 && (
+                <motion.div
+                  layout
+                  className={`${styles.pickableItem} ${styles.pickableItemSelected}`}
+                  onClick={() => toggleItem(group.lineItemId, -1)}
+                  whileTap={{ scale: 0.98 }}
                 >
-                  {isSelected && <Check size={14} color="#000" strokeWidth={3} />}
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1 }}>
+                    <div className={`${styles.checkbox} ${styles.checkboxChecked}`}>
+                      <Check size={14} color="#000" strokeWidth={3} />
+                    </div>
+                    <div className={styles.itemName}>{group.myCount}x {group.name}</div>
+                  </div>
+                  <span className={styles.itemPrice}>₦{(group.price * group.myCount).toLocaleString()}</span>
+                </motion.div>
+              )}
+
+              {/* Unclaimed Units */}
+              {group.unclaimed > 0 && (
+                <motion.div
+                  layout
+                  className={styles.pickableItem}
+                  onClick={() => toggleItem(group.lineItemId, 1)}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1 }}>
+                    <div className={styles.checkbox} />
+                    <div className={styles.itemName}>{group.unclaimed}x {group.name}</div>
+                  </div>
+                  <span className={styles.itemPrice}>₦{(group.price * group.unclaimed).toLocaleString()}</span>
+                </motion.div>
+              )}
+
+              {/* Claimed by Others */}
+              {group.othersClaims.map((claim) => (
+                <div key={claim.name} className={`${styles.pickableItem} ${styles.pickableItemClaimed}`} style={{ cursor: 'default' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1 }}>
+                    <div className={styles.checkbox} />
+                    <div>
+                      <div className={styles.itemName}>{claim.count}x {group.name}</div>
+                      <span className={styles.claimedTag}>{claim.name}</span>
+                    </div>
+                  </div>
+                  <span className={styles.itemPrice}>₦{(group.price * claim.count).toLocaleString()}</span>
                 </div>
-                <div>
-                  <div className={styles.itemName}>{item.quantity}x {item.name}</div>
-                  {isClaimed && <span className={styles.claimedTag}>{claimedBy}</span>}
-                </div>
-              </div>
-              <span className={styles.itemPrice}>₦{item.total.toLocaleString()}</span>
-            </motion.div>
-          );
-        })}
+              ))}
+            </React.Fragment>
+          ))}
+        </div>
 
         <div className={styles.totalRow}>
           <div style={{ flex: 1 }}>

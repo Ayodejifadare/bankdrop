@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import styles from './CustomerUI.module.css';
 import { formatCurrency, getCurrencySymbol } from '../../utils/formatters';
-
 import { useResolvedCheck } from '../../hooks/useResolvedCheck';
 
 interface Props {
@@ -37,15 +36,17 @@ export const SplitSession: React.FC<Props> = ({ checkId, onPayShare, onPickItems
   // Init session if not yet created
   React.useEffect(() => {
     if (!splitSession && sessionId && check) {
+      // Map raw orders to SessionItems with persistent IDs
       const sessionItems = check.orders.map(o => {
         const menuItem = merchant.menu.find(m => m.id === o.menuItemId);
         return {
-          name: menuItem?.name || 'Unknown Item',
-          quantity: o.quantity,
-          price: o.priceAtOrder || menuItem?.price || 0
+          id: o.id || o.menuItemId, // Persistent line-item ID
+          name: o.name || menuItem?.name || 'Unknown Item',
+          price: o.priceAtOrder || menuItem?.price || 0,
+          quantity: o.quantity
         };
       });
-
+ 
       createSplitSession(checkId, sessionId, 'items', sessionItems, merchant.name);
     }
   }, [checkId, sessionId, splitSession, createSplitSession, check, merchant]);
