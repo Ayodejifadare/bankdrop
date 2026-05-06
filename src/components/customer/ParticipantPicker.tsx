@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 import { ArrowLeft, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import styles from './CustomerUI.module.css';
-import { useResolvedCheck } from '../../hooks/useResolvedCheck';
+
 import { flattenOrders, calculateShare } from '../../utils/orderUtils';
 import type { SelectedItem } from '../../types/checkout';
 

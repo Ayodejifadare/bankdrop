@@ -14,7 +14,7 @@ import type {
 import { MERCHANT_LIMITS } from '../utils/constants';
 import { MerchantAuthProvider } from './MerchantAuthContext';
 import { MerchantMenuProvider, useMerchantMenu } from './MerchantMenuContext';
-import { merchantService, profileService, realtimeService, customerService } from '../api/dataService';
+import { merchantService, profileService, realtimeService } from '../api/dataService';
 import type { RealtimeEvent } from '../api/realtimeService';
 import { STORAGE_KEYS } from '../utils/constants';
 import { generateId } from '../utils/idUtils';
