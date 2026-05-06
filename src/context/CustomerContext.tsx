@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { SplitSession, Participant, SplitMethod, SessionItem } from '../types/checkout';
-import { customerService, merchantService } from '../api/dataService';
+import { customerService } from '../api/dataService';
 import { generateSimpleId } from '../utils/idUtils';
 import { useCustomerProfile } from './CustomerProfileContext';
 import { STORAGE_KEYS } from '../utils/constants';

@@ -14,10 +14,11 @@ import type {
 import { MERCHANT_LIMITS } from '../utils/constants';
 import { MerchantAuthProvider } from './MerchantAuthContext';
 import { MerchantMenuProvider, useMerchantMenu } from './MerchantMenuContext';
-import { merchantService, profileService, realtimeService } from '../api/dataService';
+import { merchantService, profileService, realtimeService, customerService } from '../api/dataService';
 import type { RealtimeEvent } from '../api/realtimeService';
 import { STORAGE_KEYS } from '../utils/constants';
 import { generateId } from '../utils/idUtils';
+
 
 // Re-export sub-context hooks for convenience
 export { useMerchantAuth } from './MerchantAuthContext';
@@ -80,7 +81,9 @@ const INITIAL_OPS_STATE: MerchantState = {
     notifications: true,
     autoPrintReceipts: false,
     tableResetOnPay: true
-  }
+  },
+  menu: [], 
+  rewards: []
 };
 
 // --- Helper to apply persistent IDs and names to legacy data ---
@@ -326,8 +329,8 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return {
           ...nextOps,
           checks: uniqueChecks,
-          menu: undefined, // Let MenuProvider own these
-          rewards: undefined
+          menu: current.menu || [], // Preserve live menu in storage
+          rewards: current.rewards || []
         };
       }, 'ops');
       

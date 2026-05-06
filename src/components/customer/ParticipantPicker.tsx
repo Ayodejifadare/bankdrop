@@ -6,7 +6,7 @@ import { ArrowLeft, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import styles from './CustomerUI.module.css';
 import { useResolvedCheck } from '../../hooks/useResolvedCheck';
-import { flattenOrders, reconcileSelections, calculateShare } from '../../utils/orderUtils';
+import { flattenOrders, calculateShare } from '../../utils/orderUtils';
 import type { SelectedItem } from '../../types/checkout';
 
 
@@ -27,7 +27,6 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
     }
   }, [sessionId, splitSession, joinSplitSession]);
 
-  const { check } = useResolvedCheck(checkId);
   const me = splitSession?.participants.find(p => p.id === participantId);
   const myName = me?.name || `Guest ${participantId.slice(0, 3)}`;
   
