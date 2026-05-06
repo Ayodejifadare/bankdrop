@@ -164,9 +164,7 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const backfilled = _backfillLegacyData(saved);
           return {
             ...prev,
-            ...backfilled,
-            menu: [], // Ops state no longer owns these
-            rewards: []
+            ...backfilled
           };
         });
       }
@@ -187,9 +185,7 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const backfilled = _backfillLegacyData(saved);
             return {
               ...prev,
-              ...backfilled,
-              menu: [], 
-              rewards: []
+              ...backfilled
             };
           });
         }
@@ -326,11 +322,14 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return acc;
         }, []);
 
+        // SURGICAL SAVE: Omit menu and rewards from the Ops Provider's save operation.
+        // This prevents the Ops Provider from ever overwriting the database's menu data.
+        const { menu: _ignore, rewards: __ignore, ...pureOps } = nextOps;
+
         return {
-          ...nextOps,
-          checks: uniqueChecks,
-          menu: current.menu || [], // Preserve live menu in storage
-          rewards: current.rewards || []
+          ...current,
+          ...pureOps,
+          checks: uniqueChecks
         };
       }, 'ops');
       
