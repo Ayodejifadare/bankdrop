@@ -1,14 +1,13 @@
 import React from 'react';
-import type { PastOrder, MenuItem } from '../../types/merchant';
+import type { PastOrder } from '../../types/merchant';
 import { formatCurrency } from '../../utils/formatters';
 
 interface ReceiptRendererProps {
   order: PastOrder;
   merchantName: string;
-  menu: MenuItem[];
 }
 
-export const ReceiptRenderer: React.FC<ReceiptRendererProps> = ({ order, merchantName, menu }) => {
+export const ReceiptRenderer: React.FC<ReceiptRendererProps> = ({ order, merchantName }) => {
   return (
     <div style={{ position: 'fixed', left: '-2000px', top: 0 }}>
       <div 

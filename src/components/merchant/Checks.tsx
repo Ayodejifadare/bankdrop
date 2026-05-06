@@ -11,6 +11,7 @@ import {
   Repeat,
   Zap
 } from 'lucide-react';
+import type { PastOrder } from '../../types/merchant';
 import { motion, AnimatePresence } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -74,6 +75,7 @@ export const CheckManager: React.FC<CheckManagerProps> = ({ onOpenSettings }) =>
       const itemsToAdd = Object.entries(pendingOrders).map(([menuItemId, quantity]) => {
         const menuItem = state.menu.find(m => m.id === menuItemId);
         return {
+          id: '', // Context will generate a permanent ID if empty
           menuItemId,
           name: menuItem?.name || 'Item',
           quantity,
