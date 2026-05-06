@@ -62,7 +62,6 @@ const INITIAL_OPS_STATE: MerchantState = {
   businessProfile: "Premium local grill serving the best Jollof and Suya in the city.",
   businessCategory: "Food & Beverages",
   bankAccounts: [],
-  menu: [], // Managed by MenuContext
   checks: Array.from({ length: 3 }, (_, i) => ({
     id: `${i + 1}`,
     status: 'open' as const,
@@ -70,7 +69,6 @@ const INITIAL_OPS_STATE: MerchantState = {
     orders: [],
     total: 0,
   })),
-  rewards: [], // Managed by MenuContext
   invoices: [],
   pendingVerifications: [],
   activities: [],
@@ -149,24 +147,23 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return _backfillLegacyData(hydrated);
   });
 
-  // Initial Backfill sync with Menu
-  useEffect(() => {
-    setState(current => _backfillLegacyData(current));
-  }, [menu]);
-
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading] = useState(false);
 
   // Background Revalidation
   useEffect(() => {
     const revalidate = async () => {
+      if (isSaving) return; // Block sync while saving to prevent reverts
       const saved = await merchantService.fetchState();
       if (saved) {
         setState(prev => {
+          if (isSaving) return prev; 
           const backfilled = _backfillLegacyData(saved);
           return {
             ...prev,
-            ...backfilled
+            ...backfilled,
+            menu: [], // Ops state no longer owns these
+            rewards: []
           };
         });
       }
@@ -179,14 +176,17 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsub = realtimeService.subscribe('STATE_CHANGED', async (event: RealtimeEvent) => {
       // Only refresh if the update came from another tab (storage_event) 
       // or another provider in the same tab (menu)
-      if (event.payload?.source !== 'ops') {
+      if (event.payload?.source !== 'ops' && !isSaving) {
         const saved = await merchantService.fetchState();
         if (saved) {
           setState(prev => {
+            if (isSaving) return prev;
             const backfilled = _backfillLegacyData(saved);
             return {
               ...prev,
-              ...backfilled
+              ...backfilled,
+              menu: [], 
+              rewards: []
             };
           });
         }
@@ -326,8 +326,8 @@ const MerchantOpsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return {
           ...nextOps,
           checks: uniqueChecks,
-          menu: safeCurrent.menu || [],
-          rewards: safeCurrent.rewards || []
+          menu: undefined, // Let MenuProvider own these
+          rewards: undefined
         };
       }, 'ops');
       

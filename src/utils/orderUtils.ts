@@ -184,3 +184,37 @@ export function migrateLegacySelections(
     count
   }));
 }
+/**
+ * Compares a merchant check's orders with a session's items to see if they are in sync.
+ */
+export const isCheckInSync = (orders: any[], sessionItems: any[]): boolean => {
+  if (orders.length !== sessionItems.length) return false;
+  
+  // Sort both by ID to ensure order-independent comparison
+  const sortedOrders = [...orders].sort((a, b) => (a.id || a.menuItemId).localeCompare(b.id || b.menuItemId));
+  const sortedItems = [...sessionItems].sort((a, b) => a.id.localeCompare(b.id));
+
+  return sortedOrders.every((o, idx) => {
+    const s = sortedItems[idx];
+    return (
+      (o.id || o.menuItemId) === s.id &&
+      o.quantity === s.quantity &&
+      (o.priceAtOrder || 0) === s.price
+    );
+  });
+};
+
+/**
+ * Transforms merchant OrderItems into SessionItems for the split session.
+ */
+export const transformToSessionItems = (orders: any[], menu: any[]): any[] => {
+  return orders.map(o => {
+    const menuItem = menu.find(m => m.id === o.menuItemId);
+    return {
+      id: o.id || o.menuItemId,
+      name: o.name || menuItem?.name || 'Unknown Item',
+      price: o.priceAtOrder || menuItem?.price || 0,
+      quantity: o.quantity
+    };
+  });
+};

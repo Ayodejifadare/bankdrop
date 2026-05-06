@@ -11,7 +11,6 @@ import {
   Repeat,
   Zap
 } from 'lucide-react';
-import type { PastOrder } from '../../types/merchant';
 import { motion, AnimatePresence } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';

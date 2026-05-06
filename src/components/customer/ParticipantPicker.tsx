@@ -35,22 +35,11 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
   const appliedBy = splitSession?.appliedBy || '';
   const isAppliedByMe = appliedBy === myName;
 
-  // Build flattened items from the LIVE merchant check (source of truth for quantities)
+  // Build flattened items from the SYNCED session items
   const orderItems = useMemo(() => {
-    if (!check) return [];
-
-    const rawOrders = check.orders.map(o => {
-      const menuItem = merchant.menu.find(m => m.id === o.menuItemId);
-      return {
-        id: o.id || o.menuItemId,
-        name: menuItem?.name || 'Unknown',
-        price: o.priceAtOrder || menuItem?.price || 0,
-        quantity: o.quantity
-      };
-    });
-
-    return flattenOrders(rawOrders);
-  }, [check, merchant.menu]);
+    if (!splitSession?.items) return [];
+    return flattenOrders(splitSession.items);
+  }, [splitSession?.items]);
 
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>(me?.selectedItems || []);
 
@@ -62,30 +51,8 @@ export const ParticipantPicker: React.FC<Props> = ({ checkId, onPay, onBack }) =
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.selectedItems]);
 
-  // RECONCILIATION EFFECT: When merchant modifies the check, reconcile all selections
-  React.useEffect(() => {
-    if (!splitSession || !check || orderItems.length === 0) return;
-
-    const currentItems = check.orders.map(o => ({
-      id: o.id || o.menuItemId,
-      quantity: o.quantity
-    }));
-
-    const reconciled = reconcileSelections(currentItems, splitSession.participants);
-    
-    // Check if MY selections changed
-    const myReconciled = reconciled.get(participantId);
-    if (myReconciled && JSON.stringify(myReconciled) !== JSON.stringify(selectedItems)) {
-      setSelectedItems(myReconciled);
-      
-      // Persist the reconciled selections
-      if (me && splitSession) {
-        const share = calculateShare(orderItems, myReconciled);
-        updateParticipant(splitSession.id, { ...me, selectedItems: myReconciled, share });
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [check?.orders]);
+  // No longer need local reconciliation here as CustomerContext handles it globally
+  // and updates splitSession.participants automatically.
 
   // Which items are claimed by OTHER participants (as counts per lineItemId)
   const claimedByOthers = useMemo(() => {

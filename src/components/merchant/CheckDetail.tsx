@@ -274,7 +274,7 @@ export const CheckDetail: React.FC<CheckDetailProps> = ({
                             </Button>
                           </div>
 
-                          <ReceiptRenderer order={historyOrder} merchantName={merchantName} menu={menu} />
+                          <ReceiptRenderer order={historyOrder} merchantName={merchantName} />
                         </div>
                       </motion.div>
                     )}

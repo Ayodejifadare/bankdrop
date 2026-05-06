@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { SplitSession, Participant, SplitMethod, SessionItem } from '../types/checkout';
-import { customerService } from '../api/dataService';
+import { customerService, merchantService } from '../api/dataService';
 import { generateSimpleId } from '../utils/idUtils';
 import { useCustomerProfile } from './CustomerProfileContext';
 import { STORAGE_KEYS } from '../utils/constants';
-import { flattenOrders, getSelectedItems, migrateLegacySelections } from '../utils/orderUtils';
+import { flattenOrders, getSelectedItems, migrateLegacySelections, isCheckInSync, transformToSessionItems, reconcileSelections } from '../utils/orderUtils';
+import { useMerchant } from './MerchantContext';
 
 
 interface CustomerContextType {
@@ -110,6 +111,42 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setIsSaving(false);
     }
   }, [sessionId, splitSession]);
+
+  // --- LIVE MERCHANT-TO-SESSION SYNC BRIDGE ---
+  // This ensures that if the merchant adds/removes items, the split session is updated
+  const { state: merchant } = useMerchant();
+  
+  useEffect(() => {
+    if (!splitSession || isSaving) return;
+
+    const check = merchant.checks.find(c => c.id === splitSession.checkId || c.sessionId === splitSession.checkId);
+    if (!check) return;
+
+    const needsSync = !isCheckInSync(check.orders, splitSession.items || []);
+    
+    if (needsSync) {
+      const newItems = transformToSessionItems(check.orders, merchant.menu);
+      
+      // Atomic update to items AND reconciliation of selections
+      performSessionUpdate(current => {
+        const reconciledMap = reconcileSelections(
+          newItems.map(i => ({ id: i.id, quantity: i.quantity })),
+          current.participants
+        );
+
+        const updatedParticipants = current.participants.map(p => ({
+          ...p,
+          selectedItems: reconciledMap.get(p.id) || []
+        }));
+
+        return {
+          ...current,
+          items: newItems,
+          participants: updatedParticipants
+        };
+      });
+    }
+  }, [merchant.checks, splitSession?.id, isSaving]);
 
   const createSplitSession = useCallback(async (cId: string, sId: string, method: SplitMethod, items: SessionItem[], businessName: string): Promise<SplitSession> => {
     setIsSaving(true);
